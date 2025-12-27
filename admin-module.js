@@ -1,4 +1,4 @@
-// admin-module.js - SaaS Dinâmico Multi-tenant
+// admin-module.js - Versão Blindada contra erros de salvamento
 import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc } from './config.js';
 import { showNotification, updateCalendar, renderWeekendDuty } from './ui.js';
 import { doc, getDoc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
@@ -44,7 +44,7 @@ export function initAdminUI() {
     renderInviteWidget(); 
     switchAdminView('daily');
     
-    // Atualiza o dashboard a cada minuto para mover cartões automaticamente
+    // Atualiza o dashboard a cada minuto
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
     dailyUpdateInterval = setInterval(() => { 
         const screen = document.getElementById('screenDaily');
@@ -213,7 +213,7 @@ async function renderInviteWidget() {
     } catch(e) { console.error(e); }
 }
 
-// --- DASHBOARD INTELIGENTE 12x36 ---
+// --- DASHBOARD INTELIGENTE ---
 export function renderDailyDashboard() {
     const todayIndex = new Date().getDate() - 1; 
     const now = new Date();
@@ -298,6 +298,7 @@ export function renderDailyDashboard() {
     Object.keys(groups).forEach(k => render(k, groups[k]));
 }
 
+// --- SALVAMENTO BLINDADO ---
 async function confirmSaveToCloud() {
     const emp = document.getElementById('employeeSelect').value;
     if (!emp) return showNotification("Selecione um colaborador", "error");
@@ -306,19 +307,30 @@ async function confirmSaveToCloud() {
         try {
             const user = state.scheduleData[emp];
             
-            // --- CORREÇÃO DE SEGURANÇA (SANITIZE) ---
-            // Garante que não enviamos 'undefined' para o Firebase
-            const safeSchedule = (user.schedule || []).map(day => (day === undefined || day === null) ? "" : day);
+            // 1. Descobre quantos dias tem o mês atual (evita array maior ou menor)
+            const daysInMonth = new Date(state.selectedMonthObj.year, state.selectedMonthObj.month + 1, 0).getDate();
+            
+            // 2. Reconstrói o array item por item para remover 'undefined' (buracos)
+            const safeSchedule = [];
+            for (let i = 0; i < daysInMonth; i++) {
+                const val = user.schedule[i];
+                // Se o valor for undefined ou null, força string vazia
+                safeSchedule.push((val === undefined || val === null) ? "" : val);
+            }
 
             const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
             const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
             
+            // Salva o array limpo
             await setDoc(ref, { calculatedSchedule: safeSchedule }, { merge: true });
             
             await addAuditLog("Edição de Escala", emp);
             showSuccessAnim("Escala Salva");
             renderDailyDashboard();
-        } catch(e) { console.error(e); showNotification("Erro ao salvar.", "error"); }
+        } catch(e) { 
+            console.error(e); 
+            showNotification("Erro ao salvar: " + e.message, "error"); 
+        }
     });
 }
 
