@@ -1,4 +1,4 @@
-// main.js - Versão Final SaaS
+// main.js - Versão Final SaaS (Dual Role Ajustado)
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
 import * as Admin from './admin-module.js';
 import * as Collab from './collab-module.js';
@@ -12,7 +12,8 @@ window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
 window.handleCellClick = (name, dayIndex) => {
-    state.currentViewMode === 'admin' ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex);
+    // Decide o comportamento do clique baseado no MODO ATUAL, não apenas no cargo do banco
+    state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex);
 };
 
 // Logout
@@ -41,24 +42,25 @@ onAuthStateChanged(auth, async (user) => {
             state.companyId = sysData.companyId;
             console.log(`🏢 Conectado à empresa: ${state.companyId}`);
 
-            // 3. Carregar Perfil DENTRO da Empresa
+            // 3. Carregar Perfil DENTRO da Empresa (Verifica ambos)
             const [adminSnap, collabSnap] = await Promise.all([
                 getDoc(getCompanyDoc("administradores", user.uid)),
                 getDoc(getCompanyDoc("colaboradores", user.uid))
             ]);
 
-            const isAdmin = adminSnap.exists();
-            const isCollab = collabSnap.exists();
-            state.isDualRole = (isAdmin && isCollab);
+            const isAdminDoc = adminSnap.exists();
+            const isCollabDoc = collabSnap.exists();
+            state.isDualRole = (isAdminDoc && isCollabDoc);
 
-            // Prioridade de Visão
+            // Prioridade de Visão Inicial
             if (state.isDualRole) {
+                // Se tem os dois perfis, funde os dados, mas prioriza a visão Admin inicialmente
                 state.profile = { ...collabSnap.data(), ...adminSnap.data() };
                 setInterfaceMode('admin');
-            } else if (isAdmin) {
+            } else if (isAdminDoc) {
                 state.profile = adminSnap.data();
                 setInterfaceMode('admin');
-            } else if (isCollab) {
+            } else if (isCollabDoc) {
                 state.profile = collabSnap.data();
                 setInterfaceMode('collab');
             } else {
@@ -76,11 +78,10 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// --- CARREGAMENTO DE DADOS (Scoped by Tenant) ---
+// --- CARREGAMENTO DE DADOS ---
 async function loadData() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month + 1).padStart(2, '0')}`;
     try {
-        // Busca escala da empresa atual
         const rosterRef = getCompanySubCollection("escalas", docId, "plantonistas");
         const rosterSnap = await getDocs(rosterRef);
 
@@ -93,6 +94,8 @@ async function loadData() {
         await processScheduleData(rosterSnap, detailsMap);
         
         renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
+        
+        // Reaplica o modo atual para garantir que a UI carregue com os dados
         setInterfaceMode(state.currentViewMode);
         renderWeekendDuty();
 
@@ -124,32 +127,59 @@ async function processScheduleData(querySnapshot, detailsMap) {
     state.scheduleData = processed;
 }
 
+// --- CONTROLE DE MODO (ADMIN vs COLLAB) ---
 function setInterfaceMode(mode) {
     state.currentViewMode = mode;
     const btnDual = document.getElementById('btnDualMode');
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
 
+    // Configura botão de troca (se for Dual Role)
     if (state.isDualRole && btnDual) {
         btnDual.classList.remove('hidden'); btnDual.classList.add('flex');
         btnDual.onclick = () => setInterfaceMode(state.currentViewMode === 'admin' ? 'collab' : 'admin');
-        document.getElementById('dualModeText').innerText = mode === 'admin' ? "Colaborador" : "Admin";
+        
+        // Texto inverte: Se estou em Admin, botão diz "Ir para Colaborador" e vice-versa
+        document.getElementById('dualModeText').innerText = mode === 'admin' ? "Área Colaborador" : "Área Admin";
+        document.getElementById('dualModeIcon').className = mode === 'admin' ? "fas fa-user-astronaut text-[9px] text-gray-400 group-hover:text-blue-400" : "fas fa-shield-alt text-[9px] text-gray-400 group-hover:text-purple-400";
     }
 
     if (mode === 'admin') {
+        // --- MODO ADMIN ---
         state.isAdmin = true; 
-        Admin.initAdminUI();
-        Collab.destroyCollabUI(); 
+        
+        // UI Helpers
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea] transition-colors";
         if(headerSuf) { headerSuf.className = "text-purple-500 text-[10px] align-top ml-1"; headerSuf.innerText = "ADMIN"; }
+        
+        Collab.destroyCollabUI(); 
+        Admin.initAdminUI(); // Restaura controles de admin
+
     } else {
-        state.isAdmin = false; 
-        Collab.initCollabUI();
-        ['screenDaily', 'screenLogs', 'screenApprovals', 'adminTabNav', 'editToolbar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
-        document.getElementById('screenEdit').classList.remove('hidden');
+        // --- MODO COLABORADOR ---
+        state.isAdmin = false; // Importante: Desativa cliques de edição no calendário
+        
+        // UI Helpers
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#2563eb] transition-colors";
         if(headerSuf) { headerSuf.className = "text-blue-500 text-[10px] align-top ml-1"; headerSuf.innerText = "COLLAB"; }
-        updatePersonalView(state.profile?.name || state.profile?.nome);
+
+        // Esconde telas e controles exclusivos de Admin
+        ['screenDaily', 'screenLogs', 'screenApprovals', 'adminTabNav', 'editToolbar', 'adminControls'].forEach(id => {
+            document.getElementById(id)?.classList.add('hidden');
+        });
+
+        // Mostra a tela de Edição (que contém o calendário) mas sem os controles de Admin
+        document.getElementById('screenEdit').classList.remove('hidden');
+        
+        // Garante que o container de FDS esteja visível (pois ele fica na sidebar)
+        document.getElementById('weekendDutyContainer').classList.remove('hidden');
+
+        // Inicializa UI do Colaborador (Cabeçalho de boas-vindas, Trocas)
+        Collab.initCollabUI();
+        
+        // FORÇA A VISÃO APENAS DO USUÁRIO LOGADO
+        const myName = state.profile?.name || state.profile?.nome;
+        updatePersonalView(myName);
     }
 }
 
