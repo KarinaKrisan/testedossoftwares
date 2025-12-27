@@ -3,13 +3,15 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebas
 import { getFirestore, collection, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
+// --- CONFIGURAÇÃO ATUALIZADA (CRONOSYS) ---
 const firebaseConfig = {
-    apiKey: "AIzaSyCBKSPH7lfUt0VsQPhJX3a0CQ2wYcziQvM",
-    authDomain: "dadosescala.firebaseapp.com",
-    projectId: "dadosescala",
-    storageBucket: "dadosescala.firebasestorage.app",
-    messagingSenderId: "117221956502",
-    appId: "1:117221956502:web:e5a7f051daf3306b501bb7"
+  apiKey: "AIzaSyDcD_4x6OHZS4dobzviooQOKwlP2EGxNHo",
+  authDomain: "cronosys.firebaseapp.com",
+  projectId: "cronosys",
+  storageBucket: "cronosys.firebasestorage.app",
+  messagingSenderId: "295756889020",
+  appId: "1:295756889020:web:d37202112843bc7f7e89b9",
+  measurementId: "G-SPM0CJ7L2T"
 };
 
 const app = initializeApp(firebaseConfig);
