@@ -31,7 +31,7 @@
         <form id="registerForm" class="space-y-4">
             <div>
                 <label class="text-[10px] uppercase font-bold text-gray-500 ml-1">Nome da Empresa</label>
-                <input type="text" id="companyName" placeholder="Ex: Tech Solutions Ltda" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-sm" required>
+                <input type="text" id="companyName" placeholder="Ex: Pioneira Churros" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-sm" required>
             </div>
 
             <div>
@@ -87,20 +87,15 @@
         taxInput.addEventListener('input', function(e) {
             let v = e.target.value.replace(/\D/g, "");
             if (v.length > 14) v = v.slice(0, 14);
-            
             if (v.length > 11) {
-                v = v.replace(/^(\d{2})(\d)/, "$1.$2");
-                v = v.replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3");
-                v = v.replace(/\.(\d{3})(\d)/, ".$1/$2");
-                v = v.replace(/(\d{4})(\d)/, "$1-$2");
+                v = v.replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
             } else {
-                v = v.replace(/(\d{3})(\d)/, "$1.$2");
-                v = v.replace(/(\d{3})(\d)/, "$1.$2");
-                v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+                v = v.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
             }
             e.target.value = v;
         });
 
+        // FORMULÁRIO DE REGISTRO
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('btnRegister');
@@ -110,59 +105,64 @@
             const email = document.getElementById('adminEmail').value.trim();
             const pass = adminPass.value;
 
-            if(pass.length < 6) {
-                showError("A senha deve ter no mínimo 6 caracteres.");
-                return;
-            }
-
-            if(taxId.length < 14) { 
-                showError("Por favor, insira um CPF ou CNPJ válido.");
-                return;
-            }
+            if(pass.length < 6) return showError("A senha deve ter no mínimo 6 caracteres.");
 
             btn.disabled = true; 
             btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Criando Empresa...';
             showError("", true); 
 
             try {
+                // 1. Criar Usuário no Firebase Auth
                 const cred = await createUserWithEmailAndPassword(auth, email, pass);
                 const uid = cred.user.uid;
                 
+                // 2. Gerar CompanyID Sanitizado (Essencial para evitar erro "Usuário não encontrado")
                 const cleanName = name.toLowerCase()
                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                     .replace(/[^a-z0-9]/g, '');
-                const companyId = `${cleanName}-${Date.now().toString().slice(-6)}`;
+                const companyId = `${cleanName}-${Date.now().toString().slice(-4)}`;
 
+                // 3. Criar registro global no sys_users (O mapa de entrada)
                 await setDoc(doc(db, "sys_users", uid), {
                     email: email,
                     companyId: companyId,
-                    role: 'owner',
+                    role: 'ceo',
                     createdAt: serverTimestamp()
                 });
 
+                // 4. Criar documento principal da empresa
                 await setDoc(doc(db, "companies", companyId), {
                     name: name,
                     taxId: taxId,
-                    plan: 'free_tier',
+                    plan: 'blaze',
                     active: true,
                     createdAt: serverTimestamp()
                 });
 
-                await setDoc(doc(db, "companies", companyId, "administradores", uid), {
+                // 5. Criar perfil do usuário como CEO (Nível 100)
+                // Usamos a subcoleção 'users' conforme definido no seu main.js
+                await setDoc(doc(db, "companies", companyId, "users", uid), {
+                    name: name.split(' ')[0] + " (CEO)",
                     email: email,
-                    nome: name.split(' ')[0] + " (Admin)",
-                    role: "Gestor",
-                    cargo: "Proprietário",
-                    permissions: "full_access"
+                    level: 100, // Gatilho crucial para a Cloud Function gerar as Claims
+                    role: "ceo",
+                    active: true,
+                    createdAt: serverTimestamp()
                 });
 
-                alert(`Bem-vindo, ${name}!\nSua conta foi criada com sucesso.`);
-                window.location.href = "login-admin.html";
+                // 6. Aguardar processamento da Cloud Function e atualizar Token
+                // Este passo evita o erro de permissão no primeiro carregamento
+                await new Promise(res => setTimeout(res, 2500)); 
+                await cred.user.getIdTokenResult(true);
+
+                window.location.href = "index.html"; 
 
             } catch (err) {
-                console.error(err);
-                let msg = "Erro ao criar conta.";
-                if (err.code === 'auth/email-already-in-use') msg = "E-mail já cadastrado.";
+                console.error("Erro no Registro:", err);
+                let msg = "Erro ao criar conta. Verifique sua conexão.";
+                if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já está em uso.";
+                if (err.message.includes("permission")) msg = "Erro de permissão no banco. Verifique as Rules.";
+                
                 showError(msg);
                 btn.disabled = false; 
                 btn.innerText = "Criar Conta & Acessar";
@@ -171,12 +171,8 @@
 
         function showError(msg, hide = false) {
             const errorDiv = document.getElementById('regError');
-            if(hide) {
-                errorDiv.classList.add('hidden');
-            } else {
-                errorDiv.textContent = msg;
-                errorDiv.classList.remove('hidden');
-            }
+            if(hide) errorDiv.classList.add('hidden');
+            else { errorDiv.textContent = msg; errorDiv.classList.remove('hidden'); }
         }
     </script>
 </body>
