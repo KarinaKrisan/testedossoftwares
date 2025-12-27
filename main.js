@@ -1,4 +1,4 @@
-// main.js - Versão Final (Baseada em Níveis)
+// main.js - Versão Final e Completa
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
 import * as Admin from './admin-module.js';
 import * as Collab from './collab-module.js';
@@ -6,18 +6,26 @@ import { updatePersonalView, switchSubTab, renderMonthSelector, renderWeekendDut
 import { doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-// Exportações Globais
+// --- EXPORTAÇÕES GLOBAIS (Para funcionar com onclicks no HTML) ---
 window.switchSubTab = switchSubTab;
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
+
+// Manipulador de clique na célula (inteligente: sabe se é Admin ou Collab)
 window.handleCellClick = (name, dayIndex) => {
-    // Se estiver no modo Admin, usa a lógica de edição. Se estiver no modo Collab, usa a lógica de visualização/troca.
     state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex);
 };
 
-// Logout
-const performLogout = async () => { try { await signOut(auth); window.location.href = "start.html"; } catch (e) { console.error(e); } };
+// --- LOGOUT ---
+const performLogout = async () => { 
+    try { 
+        await signOut(auth); 
+        window.location.href = "start.html"; 
+    } catch (e) { 
+        console.error(e); 
+    } 
+};
 if(document.getElementById('btnLogout')) document.getElementById('btnLogout').onclick = performLogout;
 if(document.getElementById('btnLogoutMobile')) document.getElementById('btnLogoutMobile').onclick = performLogout;
 
@@ -26,7 +34,7 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         state.currentUser = user;
         try {
-            // 1. Identificar Empresa
+            // 1. Identificar a Empresa do Usuário (sys_users)
             const sysUserRef = doc(db, "sys_users", user.uid);
             const sysUserSnap = await getDoc(sysUserRef);
 
@@ -40,7 +48,7 @@ onAuthStateChanged(auth, async (user) => {
             const sysData = sysUserSnap.data();
             state.companyId = sysData.companyId;
 
-            // 2. Carregar Perfil Unificado
+            // 2. Carregar Perfil do Colaborador dentro da Empresa
             const userDocRef = getCompanyDoc("users", user.uid);
             const userSnap = await getDoc(userDocRef);
 
@@ -50,14 +58,14 @@ onAuthStateChanged(auth, async (user) => {
 
             state.profile = userSnap.data();
             
-            // --- AQUI ESTÁ A REGRA DO LÍDER ---
+            // --- REGRA DE HIERARQUIA ---
             const myLevel = state.profile.level || 0;
             
-            // Se Nível >= 40 (Líder, Gestor, CEO), ativa o modo DUPLO
+            // Se Nível >= 40 (Líder, Gestor, CEO), ativa o modo DUPLO (pode ver Admin e Collab)
             const isManager = myLevel >= 40;
             state.isDualRole = isManager; 
 
-            // Se for Gerente/Líder, começa no Admin. Se for Colaborador, só tem Collab.
+            // Decisão Inicial: Gerentes vão para Admin, Colaboradores para Collab
             if (isManager) {
                 setInterfaceMode('admin');
             } else {
@@ -69,44 +77,54 @@ onAuthStateChanged(auth, async (user) => {
         } catch (e) {
             console.error("Erro Login:", e);
             alert("Erro ao carregar perfil: " + e.message);
-            // window.location.href = "start.html"; 
         }
     } else {
+        // Se não estiver logado, manda para o login
         window.location.href = "start.html";
     }
 });
 
-// --- CARREGAMENTO DE DADOS ---
+// --- CARREGAMENTO DE DADOS (Firestore) ---
 async function loadData() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month + 1).padStart(2, '0')}`;
+    
     try {
-        // Busca Escala
+        // Busca a Escala do Mês (plantonistas)
         const rosterRef = getCompanySubCollection("escalas", docId, "plantonistas");
         const rosterSnap = await getDocs(rosterRef);
 
-        // Busca Lista de Usuários (Todos da empresa)
+        // Busca Lista de Usuários (Todos da empresa para referência)
         const usersRef = getCompanyCollection("users");
         const usersSnap = await getDocs(usersRef);
         
         const detailsMap = {};
         usersSnap.forEach(doc => { detailsMap[doc.id] = doc.data(); });
 
+        // Processa e unifica os dados
         await processScheduleData(rosterSnap, detailsMap);
         
+        // Renderiza seletores e interface
         renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
         
-        // Reaplica interface para garantir que os dados apareçam
+        // Reaplica a UI atual para garantir que os dados novos apareçam
         setInterfaceMode(state.currentViewMode);
+        
+        // Atualiza o painel de fim de semana
         renderWeekendDuty();
 
-    } catch (error) { console.error("Load Data Error:", error); } 
-    finally { hideLoader(); }
+    } catch (error) { 
+        console.error("Load Data Error:", error); 
+        showNotification("Erro ao carregar dados.", "error");
+    } finally { 
+        hideLoader(); 
+    }
 }
 
+// Processa os dados brutos do Firestore para o formato da App
 async function processScheduleData(querySnapshot, detailsMap) {
     const processed = {};
     
-    // 1. Processa quem já tem escala
+    // 1. Quem tem escala salva
     querySnapshot.forEach((doc) => {
         const uid = doc.id;
         const scaleData = doc.data();
@@ -117,9 +135,10 @@ async function processScheduleData(querySnapshot, detailsMap) {
         }
     });
 
-    // 2. Adiciona quem está no cadastro mas sem escala (para aparecer no Admin)
+    // 2. Quem existe mas não tem escala (apenas para Admin ver e poder escalar)
     Object.keys(detailsMap).forEach(uid => {
         const u = detailsMap[uid];
+        // Se não foi processado acima e está ativo
         if (u.active !== false && !Object.values(processed).some(p => p.uid === uid)) {
              processed[u.nome] = buildUserObj(uid, u, []);
         }
@@ -128,6 +147,7 @@ async function processScheduleData(querySnapshot, detailsMap) {
     state.scheduleData = processed;
 }
 
+// Cria o objeto padrão do usuário
 function buildUserObj(uid, profile, schedule) {
     return {
         uid: uid,
@@ -149,58 +169,64 @@ function setInterfaceMode(mode) {
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
 
-    // Botão de troca só aparece para quem tem permissão (isDualRole)
+    // Botão de troca (Apenas para managers)
     if (state.isDualRole && btnDual) {
         btnDual.classList.remove('hidden'); 
         btnDual.classList.add('flex');
+        
+        // Ao clicar, inverte o modo
         btnDual.onclick = () => setInterfaceMode(state.currentViewMode === 'admin' ? 'collab' : 'admin');
         
-        // Ajusta texto do botão
+        // Atualiza texto e ícone do botão
         document.getElementById('dualModeText').innerText = mode === 'admin' ? "Área Colaborador" : "Área Admin";
-        document.getElementById('dualModeIcon').className = mode === 'admin' ? "fas fa-user-astronaut text-[9px] text-gray-400 group-hover:text-blue-400" : "fas fa-shield-alt text-[9px] text-gray-400 group-hover:text-purple-400";
+        document.getElementById('dualModeIcon').className = mode === 'admin' 
+            ? "fas fa-user-astronaut text-[9px] text-gray-400 group-hover:text-blue-400" 
+            : "fas fa-shield-alt text-[9px] text-gray-400 group-hover:text-purple-400";
     }
 
     if (mode === 'admin') {
-        // --- MODO ADMIN ---
+        // === MODO ADMIN ===
         state.isAdmin = true; 
         
-        // Estilo Visual
+        // Estilo do Header (Roxo)
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea] transition-colors";
         if(headerSuf) { headerSuf.className = "text-purple-500 text-[10px] align-top ml-1"; headerSuf.innerText = "ADMIN"; }
         
-        // Troca as interfaces
+        // Limpa UI antiga e Inicia UI Admin
         Collab.destroyCollabUI(); 
         Admin.initAdminUI(); 
 
     } else {
-        // --- MODO COLABORADOR ---
+        // === MODO COLABORADOR ===
         state.isAdmin = false; 
         
-        // Estilo Visual
+        // Estilo do Header (Azul)
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#2563eb] transition-colors";
         if(headerSuf) { headerSuf.className = "text-blue-500 text-[10px] align-top ml-1"; headerSuf.innerText = "COLLAB"; }
 
-        // Esconde Painéis Admin
+        // Esconde Painéis exclusivos de Admin
         ['screenDaily', 'screenLogs', 'screenApprovals', 'adminTabNav', 'editToolbar', 'adminControls'].forEach(id => {
             document.getElementById(id)?.classList.add('hidden');
         });
 
-        // Mostra Painéis Comuns/Collab
+        // Mostra Painéis Comuns
         document.getElementById('screenEdit').classList.remove('hidden');
         document.getElementById('weekendDutyContainer').classList.remove('hidden');
 
         // Inicia UI Collab
         Collab.initCollabUI();
         
-        // Força visão pessoal
+        // Renderiza a visão pessoal do usuário logado
         const myName = state.profile?.nome || state.profile?.name;
         updatePersonalView(myName);
     }
 }
 
+// Troca de Mês
 async function handleMonthChange(direction) {
     const cur = availableMonths.findIndex(m => m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month);
     const next = cur + direction;
+    
     if (next >= 0 && next < availableMonths.length) {
         state.selectedMonthObj = availableMonths[next];
         await loadData();
