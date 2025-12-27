@@ -7,14 +7,20 @@ const shifts = ["07:00 às 19:00", "07:30 às 18:18", "08:00 às 17:48", "08:30 
 let mini = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: null };
 
 export function initCollabUI() {
+    // Garante que controles administrativos sumam
     ['adminControls', 'adminTabNav', 'editToolbar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    
+    // Mostra controles do colaborador
     ['collabHeader', 'collabControls'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
     
     const name = state.profile?.name || state.profile?.nome;
     if(name) {
         document.getElementById('welcomeUser').textContent = `Olá, ${name.split(' ')[0]}`;
+        
+        // Trava o seletor (caso ele esteja visível por algum bug, embora devêssemos escondê-lo)
         const sel = document.getElementById('employeeSelect');
         if(sel) { sel.innerHTML = `<option>${name}</option>`; sel.value = name; sel.disabled = true; }
+        
         updatePersonalView(name);
         initRequestsTab(); 
         initInboxTab();    
@@ -26,14 +32,14 @@ export function initCollabUI() {
 export function destroyCollabUI() {
     ['collabHeader', 'collabControls'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
     const sel = document.getElementById('employeeSelect');
-    if(sel) sel.disabled = false;
+    if(sel) sel.disabled = false; // Destrava o seletor ao voltar para Admin
 }
 
+// ... Resto do código (setupEvents, renderMiniCal, sendReq, etc) permanece igual ...
 function setupEvents() {
     const bNew = document.getElementById('btnNewRequestDynamic'); if(bNew) bNew.onclick = openModal;
     const bSend = document.getElementById('btnSendRequest'); if(bSend) bSend.onclick = sendReq;
     const tSel = document.getElementById('reqType'); if(tSel) tSel.onchange = handleType;
-    // Mini Calendar
     document.getElementById('datePickerTrigger').onclick = () => { document.getElementById('miniCalendarDropdown').classList.toggle('hidden'); renderMiniCal(); };
     document.getElementById('miniPrev').onclick = () => { mini.m--; if(mini.m<0){mini.m=11;mini.y--}; renderMiniCal(); };
     document.getElementById('miniNext').onclick = () => { mini.m++; if(mini.m>11){mini.m=0;mini.y++}; renderMiniCal(); };
@@ -55,7 +61,10 @@ function renderMiniCal() {
     }
 }
 
-export function handleCollabCellClick() { showNotification("Use a Central de Trocas.", "error"); }
+export function handleCollabCellClick() { 
+    // Em vez de só notificar erro, aqui podemos abrir o modal de troca diretamente se desejar
+    showNotification("Use o botão 'Nova Solicitação' para trocas.", "info"); 
+}
 
 function openModal() {
     document.getElementById('requestModal').classList.remove('hidden');
@@ -90,7 +99,6 @@ async function sendReq() {
         }
 
         const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
-        // SAAS: Grava na coleção da empresa
         await addDoc(getCompanyCollection("solicitacoes"), {
             monthId: docId, requester: (state.profile.name||state.profile.nome), requesterUid: state.currentUser.uid,
             dayIndex: parseInt(date.split('-')[2])-1, type, target, targetUid: tUid, desiredShift: shift, reason,
@@ -124,4 +132,4 @@ function initInboxTab() {
 }
 
 window.deleteRequest = async (id) => { if(confirm("Excluir?")) await deleteDoc(getCompanyDoc("solicitacoes", id)); };
-window.handlePeerResponse = async (id, act) => { await updateDoc(getCompanyDoc("solicitacoes", id), { status: act==='approve'?'pending_leader':'rejected' }); }; 
+window.handlePeerResponse = async (id, act) => { await updateDoc(getCompanyDoc("solicitacoes", id), { status: act==='approve'?'pending_leader':'rejected' }); };
