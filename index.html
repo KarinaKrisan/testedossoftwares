@@ -57,54 +57,68 @@
         </div>
 
         <section id="screenDaily" class="hidden animate-fade-in">
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
-                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
-                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
-                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-emerald-400 tracking-widest">Turno</span>
-                        <span id="countAtivo" class="text-[10px] font-mono text-white bg-white/10 px-1.5 py-px rounded">0</span>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                
+                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
+                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
+                        <span class="text-[9px] font-bold uppercase text-emerald-400 tracking-widest flex items-center gap-1">
+                            <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Turno
+                        </span>
+                        <span id="countAtivo" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
                     </div>
-                    <div id="listAtivo" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                    <div id="listAtivo" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
 
-                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
-                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
-                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-purple-500 tracking-widest">Off/Enc</span>
-                        <span id="countEncerrado" class="text-[10px] font-mono text-white/50 bg-white/10 px-1.5 py-px rounded">0</span>
+                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
+                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
+                        <span class="text-[9px] font-bold uppercase text-purple-400 tracking-widest flex items-center gap-1">
+                            <div class="w-1.5 h-1.5 rounded-full bg-purple-500"></div> Off
+                        </span>
+                        <span id="countEncerrado" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
                     </div>
-                    <div id="listEncerrado" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                    <div id="listEncerrado" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
 
-                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
-                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
-                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-yellow-500 tracking-widest">Folga</span>
-                        <span id="countFolga" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
+                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
+                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
+                        <span class="text-[9px] font-bold uppercase text-yellow-400 tracking-widest flex items-center gap-1">
+                            <div class="w-1.5 h-1.5 rounded-full bg-yellow-500"></div> Folga
+                        </span>
+                        <span id="countFolga" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
                     </div>
-                    <div id="listFolga" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                    <div id="listFolga" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
 
-                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
-                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
-                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-red-500 tracking-widest">Férias</span>
-                        <span id="countFerias" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
+                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
+                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
+                        <span class="text-[9px] font-bold uppercase text-red-400 tracking-widest flex items-center gap-1">
+                            <div class="w-1.5 h-1.5 rounded-full bg-red-500"></div> Férias
+                        </span>
+                        <span id="countFerias" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
                     </div>
-                    <div id="listFerias" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                    <div id="listFerias" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
 
-                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
-                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
-                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-orange-500 tracking-widest">Afastado</span>
-                        <span id="countAfastado" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
+                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
+                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
+                        <span class="text-[9px] font-bold uppercase text-orange-400 tracking-widest flex items-center gap-1">
+                            <div class="w-1.5 h-1.5 rounded-full bg-orange-500"></div> Afast.
+                        </span>
+                        <span id="countAfastado" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
                     </div>
-                    <div id="listAfastado" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                    <div id="listAfastado" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
 
-                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
-                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
-                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-pink-500 tracking-widest">Licença</span>
-                        <span id="countLicenca" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
+                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
+                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
+                        <span class="text-[9px] font-bold uppercase text-pink-400 tracking-widest flex items-center gap-1">
+                            <div class="w-1.5 h-1.5 rounded-full bg-pink-500"></div> Licença
+                        </span>
+                        <span id="countLicenca" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
                     </div>
-                    <div id="listLicenca" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                    <div id="listLicenca" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
+
             </div>
         </section>
 
