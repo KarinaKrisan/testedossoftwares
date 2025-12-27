@@ -92,7 +92,7 @@ function renderAuditLogs() {
                 <div class="text-right">
                      <span class="text-[8px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 rounded border border-emerald-500/10" title="${log.admin}">
                         ${log.admin.split('@')[0]}
-                     </span>
+                      </span>
                 </div>
             </div>
             <div class="mt-1 pl-1 border-l-2 border-white/10 ml-0.5">
@@ -219,7 +219,6 @@ export function renderDailyDashboard() {
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // Helper para converter string de horário "HH:MM" em minutos absolutos
     const getMins = (str) => {
         if(!str) return 0;
         const [h, m] = str.split(':').map(Number);
@@ -230,50 +229,39 @@ export function renderDailyDashboard() {
 
     Object.values(state.scheduleData).sort((a,b) => a.name.localeCompare(b.name)).forEach(emp => {
         const sToday = emp.schedule[todayIndex] || 'F';
-        const sYesterday = todayIndex > 0 ? (emp.schedule[todayIndex - 1] || 'F') : 'F'; // Status de ontem
+        const sYesterday = todayIndex > 0 ? (emp.schedule[todayIndex - 1] || 'F') : 'F'; 
         
         let group = 'Encerrado';
 
-        // Lógica de Detecção de Horário Noturno
         let isNightShift = false;
-        let startMin = 480; // Default 08:00
-        let endMin = 1020;  // Default 17:00
+        let startMin = 480; 
+        let endMin = 1020;  
         
         const times = (emp.horario || "08:00 às 17:00").match(/(\d{1,2}:\d{2})/g);
         if (times && times.length >= 2) {
             startMin = getMins(times[0]);
             endMin = getMins(times[1]);
-            if (endMin < startMin) isNightShift = true; // Cruza meia-noite (ex: 19:30 às 07:30)
+            if (endMin < startMin) isNightShift = true; 
         }
 
-        // --- MÁQUINA DE ESTADOS DO COLABORADOR ---
-
-        // 1. Caso Bruno: Hoje é Folga (F), mas Ontem foi Turno (T) E é escala noturna.
-        // Ele ainda está trabalhando na manhã de hoje até o turno acabar.
         if (sToday !== 'T' && sYesterday === 'T' && isNightShift && currentMinutes < endMin) {
             group = 'Ativo';
         }
-        // 2. Caso Padrão de Turno (T)
         else if (sToday === 'T') {
             if (isNightShift) {
-                // Caso Leandro: Escala noturna no dia de início.
-                // Só fica "Ativo" se já passou da hora de entrada (startMin).
-                // Antes disso (durante o dia), ele está "Off/Encerrado".
                 if (currentMinutes >= startMin) {
                     group = 'Ativo';
                 } else {
-                    group = 'Encerrado'; // Off aguardando a noite chegar
+                    group = 'Encerrado'; 
                 }
             } else {
-                // Turno Diurno Normal (ex: 08:00 às 17:00)
                 if (currentMinutes >= startMin && currentMinutes < endMin) {
                     group = 'Ativo';
                 } else {
-                    group = 'Encerrado'; // Fora do expediente
+                    group = 'Encerrado'; 
                 }
             }
         }
-        // 3. Status Especiais
         else if (['F', 'FS', 'FD'].includes(sToday)) group = 'Folga';
         else if (sToday === 'FE') group = 'Ferias';
         else if (sToday === 'A') group = 'Afastado';
@@ -317,9 +305,16 @@ async function confirmSaveToCloud() {
     askConfirmation(`Deseja salvar as alterações de ${emp}?`, async () => {
         try {
             const user = state.scheduleData[emp];
+            
+            // --- CORREÇÃO DE SEGURANÇA (SANITIZE) ---
+            // Garante que não enviamos 'undefined' para o Firebase
+            const safeSchedule = (user.schedule || []).map(day => (day === undefined || day === null) ? "" : day);
+
             const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
             const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
-            await setDoc(ref, { calculatedSchedule: user.schedule }, { merge: true });
+            
+            await setDoc(ref, { calculatedSchedule: safeSchedule }, { merge: true });
+            
             await addAuditLog("Edição de Escala", emp);
             showSuccessAnim("Escala Salva");
             renderDailyDashboard();
