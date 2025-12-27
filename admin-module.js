@@ -1,5 +1,4 @@
 // admin-module.js - SaaS Dinâmico Multi-tenant
-// ADICIONADO: isWorkingTime nos imports
 import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc, isWorkingTime } from './config.js';
 import { showNotification, updateCalendar, renderWeekendDuty } from './ui.js';
 import { doc, getDoc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
@@ -20,7 +19,10 @@ export function switchAdminView(view) {
             if(s.toLowerCase() === view.toLowerCase()) btn.classList.add('active'); 
         }
     });
+
+    // Lógica específica por visualização
     if (view === 'daily') renderDailyDashboard();
+    if (view === 'logs') renderAuditLogs(); // <--- CHAMA A RENDERIZAÇÃO DOS LOGS
     
     const tb = document.getElementById('editToolbar');
     if (view === 'edit') { 
@@ -43,7 +45,6 @@ export function initAdminUI() {
     renderInviteWidget(); 
     switchAdminView('daily');
     
-    // Atualiza o dashboard a cada minuto para mover pessoas que encerraram o turno
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
     dailyUpdateInterval = setInterval(() => { 
         const screen = document.getElementById('screenDaily');
@@ -51,7 +52,63 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- LOGICA DOS MODAIS (SUBSTITUI CONFIRM) ---
+// --- RENDERIZAÇÃO DE LOGS (NOVA FUNÇÃO) ---
+function renderAuditLogs() {
+    const container = document.getElementById('screenLogs');
+    if(!container) return;
+
+    if(allLoadedLogs.length === 0) {
+        container.innerHTML = `
+            <div class="premium-glass p-8 text-center rounded-xl border border-white/5">
+                <i class="fas fa-history text-4xl text-white/20 mb-3"></i>
+                <p class="text-gray-500 text-xs uppercase tracking-widest">Nenhum registro encontrado</p>
+            </div>`;
+        return;
+    }
+
+    let html = `
+    <div class="premium-glass p-1 md:p-4 rounded-xl border border-white/5 flex flex-col h-[calc(100vh-140px)] md:h-[calc(100vh-180px)]">
+        <div class="flex justify-between items-center mb-4 px-2 pt-2">
+            <h3 class="text-xs font-bold text-white uppercase tracking-widest flex items-center gap-2">
+                <i class="fas fa-fingerprint text-blue-400"></i> Auditoria
+            </h3>
+            <span class="text-[9px] text-gray-500 bg-white/5 px-2 py-1 rounded border border-white/5">
+                ${allLoadedLogs.length} Registros
+            </span>
+        </div>
+        <div class="overflow-y-auto custom-scrollbar flex-1 space-y-2 pr-1 md:pr-2">`;
+
+    html += allLoadedLogs.map(log => `
+        <div class="bg-white/5 p-3 rounded-lg border border-white/5 hover:bg-white/10 transition-all group">
+            <div class="flex justify-between items-start">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-[8px] font-bold text-blue-300 bg-blue-500/10 px-1.5 py-0.5 rounded uppercase tracking-wider border border-blue-500/20">
+                        ${log.action}
+                    </span>
+                    <span class="text-[8px] text-gray-500 font-mono flex items-center gap-1">
+                        <i class="far fa-clock text-[7px]"></i> ${log.date}
+                    </span>
+                </div>
+                <div class="text-right">
+                     <span class="text-[8px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 rounded border border-emerald-500/10" title="${log.admin}">
+                        ${log.admin.split('@')[0]}
+                     </span>
+                </div>
+            </div>
+            <div class="mt-1 pl-1 border-l-2 border-white/10 ml-0.5">
+                <div class="text-[9px] text-gray-300 pl-2">
+                    <span class="text-white/30 uppercase text-[7px] tracking-wider mr-1">Alvo:</span> 
+                    <strong class="text-white">${log.target}</strong>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    html += `</div></div>`;
+    container.innerHTML = html;
+}
+
+// --- LOGICA DOS MODAIS ---
 function askConfirmation(message, onConfirm) {
     const modal = document.getElementById('customConfirmModal');
     const content = document.getElementById('modalContent');
@@ -156,36 +213,26 @@ async function renderInviteWidget() {
     } catch(e) { console.error(e); }
 }
 
-// --- DASHBOARD E ESCALAS (SLIM UPDATE + LÓGICA DE HORÁRIO) ---
+// --- DASHBOARD E ESCALAS ---
 export function renderDailyDashboard() {
     const today = new Date().getDate() - 1; 
     const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
 
     Object.values(state.scheduleData).sort((a,b) => a.name.localeCompare(b.name)).forEach(emp => {
         const sToday = emp.schedule[today] || 'F';
-        let group = 'Encerrado'; // Default fallback
+        let group = 'Encerrado';
 
         if (sToday === 'T') {
-            // ALTERAÇÃO: Verifica se está no horário de expediente
-            // Se isWorkingTime retornar true, vai para Ativo. Se false, vai para Encerrado.
             if (isWorkingTime(emp.horario)) {
                 group = 'Ativo';
             } else {
                 group = 'Encerrado';
             }
         } 
-        else if (['F', 'FS', 'FD'].includes(sToday)) {
-            group = 'Folga';
-        } 
-        else if (sToday === 'FE') {
-            group = 'Ferias';
-        } 
-        else if (sToday === 'A') {
-            group = 'Afastado';
-        } 
-        else if (sToday === 'LM') {
-            group = 'Licenca';
-        }
+        else if (['F', 'FS', 'FD'].includes(sToday)) group = 'Folga';
+        else if (sToday === 'FE') group = 'Ferias';
+        else if (sToday === 'A') group = 'Afastado';
+        else if (sToday === 'LM') group = 'Licenca';
 
         if (groups[group]) groups[group].push({ ...emp, status: sToday });
     });
@@ -204,7 +251,6 @@ export function renderDailyDashboard() {
             if (k === 'Licenca') color = 'bg-pink-500';
             if (k === 'Encerrado') color = 'bg-purple-500';
 
-            // Visual SLIM mantido
             list.innerHTML = l.map(u => `
                 <div class="flex items-center justify-between bg-white/5 border border-white/5 rounded px-2 py-1 hover:bg-white/10 transition-colors group">
                     <div class="flex items-center gap-2 overflow-hidden">
@@ -292,6 +338,12 @@ async function internalApplyLogFilter() {
     const q = query(getCompanyCollection("logs_auditoria"), orderBy("timestamp", "desc"));
     onSnapshot(q, (snap) => {
         allLoadedLogs = snap.docs.map(d => ({ date: d.data().timestamp?.toDate().toLocaleString()||'-', admin: d.data().adminEmail||'Sys', action: d.data().action||'-', target: d.data().target||'-' }));
+        
+        // ATUALIZAÇÃO EM TEMPO REAL: Se a tela de logs estiver visível, atualiza ela.
+        const logsScreen = document.getElementById('screenLogs');
+        if (logsScreen && !logsScreen.classList.contains('hidden')) {
+            renderAuditLogs();
+        }
     });
 }
 
