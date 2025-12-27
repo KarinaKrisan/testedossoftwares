@@ -1,5 +1,6 @@
 // admin-module.js - SaaS Dinâmico Multi-tenant
-import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc } from './config.js';
+// ADICIONADO: isWorkingTime nos imports
+import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc, isWorkingTime } from './config.js';
 import { showNotification, updateCalendar, renderWeekendDuty } from './ui.js';
 import { doc, getDoc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
@@ -42,6 +43,7 @@ export function initAdminUI() {
     renderInviteWidget(); 
     switchAdminView('daily');
     
+    // Atualiza o dashboard a cada minuto para mover pessoas que encerraram o turno
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
     dailyUpdateInterval = setInterval(() => { 
         const screen = document.getElementById('screenDaily');
@@ -154,26 +156,34 @@ async function renderInviteWidget() {
     } catch(e) { console.error(e); }
 }
 
-// --- DASHBOARD E ESCALAS (SLIM UPDATE) ---
+// --- DASHBOARD E ESCALAS (SLIM UPDATE + LÓGICA DE HORÁRIO) ---
 export function renderDailyDashboard() {
     const today = new Date().getDate() - 1; 
-    
-    // Grupos separados
     const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
 
     Object.values(state.scheduleData).sort((a,b) => a.name.localeCompare(b.name)).forEach(emp => {
         const sToday = emp.schedule[today] || 'F';
-        let group = 'Encerrado';
+        let group = 'Encerrado'; // Default fallback
 
         if (sToday === 'T') {
-            group = 'Ativo';
-        } else if (['F', 'FS', 'FD'].includes(sToday)) {
+            // ALTERAÇÃO: Verifica se está no horário de expediente
+            // Se isWorkingTime retornar true, vai para Ativo. Se false, vai para Encerrado.
+            if (isWorkingTime(emp.horario)) {
+                group = 'Ativo';
+            } else {
+                group = 'Encerrado';
+            }
+        } 
+        else if (['F', 'FS', 'FD'].includes(sToday)) {
             group = 'Folga';
-        } else if (sToday === 'FE') {
+        } 
+        else if (sToday === 'FE') {
             group = 'Ferias';
-        } else if (sToday === 'A') {
+        } 
+        else if (sToday === 'A') {
             group = 'Afastado';
-        } else if (sToday === 'LM') {
+        } 
+        else if (sToday === 'LM') {
             group = 'Licenca';
         }
 
@@ -186,7 +196,6 @@ export function renderDailyDashboard() {
         
         const list = document.getElementById(`list${k}`);
         if(list) {
-            // Cores das pílulas internas
             let color = 'bg-gray-600';
             if (k === 'Ativo') color = 'bg-emerald-500';
             if (k === 'Folga') color = 'bg-yellow-500';
@@ -195,7 +204,7 @@ export function renderDailyDashboard() {
             if (k === 'Licenca') color = 'bg-pink-500';
             if (k === 'Encerrado') color = 'bg-purple-500';
 
-            // Geração SLIM dos itens da lista (Compacto)
+            // Visual SLIM mantido
             list.innerHTML = l.map(u => `
                 <div class="flex items-center justify-between bg-white/5 border border-white/5 rounded px-2 py-1 hover:bg-white/10 transition-colors group">
                     <div class="flex items-center gap-2 overflow-hidden">
