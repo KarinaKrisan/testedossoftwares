@@ -1,4 +1,4 @@
-// main.js - Versão Final (Correção do Erro Undefined)
+// main.js - Versão Final (Correção Definitiva do Erro Undefined)
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
 import * as Admin from './admin-module.js';
 import * as Collab from './collab-module.js';
@@ -48,7 +48,7 @@ onAuthStateChanged(auth, async (user) => {
             const sysData = sysUserSnap.data();
             state.companyId = sysData.companyId;
 
-            // 2. Carregar Perfil do Colaborador
+            // 2. Carregar Perfil do Usuário
             const userDocRef = getCompanyDoc("users", user.uid);
             const userSnap = await getDoc(userDocRef);
 
@@ -87,9 +87,11 @@ async function loadData() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month + 1).padStart(2, '0')}`;
     
     try {
+        // Busca Escalas
         const rosterRef = getCompanySubCollection("escalas", docId, "plantonistas");
         const rosterSnap = await getDocs(rosterRef);
 
+        // Busca Usuários
         const usersRef = getCompanyCollection("users");
         const usersSnap = await getDocs(usersRef);
         
@@ -100,6 +102,7 @@ async function loadData() {
         
         renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
         
+        // Reaplica modo atual
         setInterfaceMode(state.currentViewMode);
         
         renderWeekendDuty();
@@ -123,7 +126,6 @@ async function processScheduleData(querySnapshot, detailsMap) {
         const userProfile = detailsMap[uid];
 
         if (userProfile && userProfile.active !== false) { 
-            // CORREÇÃO: Garante que o nome não seja undefined na chave do objeto
             const safeName = userProfile.name || userProfile.nome || "Sem Nome";
             processed[safeName] = buildUserObj(uid, userProfile, scaleData.calculatedSchedule);
         }
@@ -132,7 +134,6 @@ async function processScheduleData(querySnapshot, detailsMap) {
     // 2. Quem existe mas não tem escala
     Object.keys(detailsMap).forEach(uid => {
         const u = detailsMap[uid];
-        // CORREÇÃO: Verifica nome seguro aqui também
         const safeName = u.name || u.nome || "Sem Nome";
 
         if (u.active !== false && !Object.values(processed).some(p => p.uid === uid)) {
@@ -143,22 +144,33 @@ async function processScheduleData(querySnapshot, detailsMap) {
     state.scheduleData = processed;
 }
 
-// Cria o objeto padrão do usuário (BLINDADO CONTRA UNDEFINED)
+// --- FUNÇÃO CRÍTICA CORRIGIDA ---
+// Cria o objeto do usuário garantindo que nenhum campo seja 'undefined'
 function buildUserObj(uid, profile, schedule) {
-    // CORREÇÃO CRÍTICA: Verifica name (novo) e nome (antigo)
-    // Se ambos falharem, usa string fixa para não quebrar o Firebase
+    // Garante nome
     const safeName = profile.name || profile.nome || "Usuário Sem Nome";
 
     return {
         uid: uid,
         name: safeName, 
+        
+        // Segurança
         role: profile.role || 'collaborator',
         level: profile.level || 10,
+        
+        // Organizacional (Aqui estava o erro: garantimos string vazia se não existir)
         cargo: profile.cargo || '-',
         setorID: profile.setorID || 'NOC',
+        celulaID: profile.celulaID || '',     // <-- CORREÇÃO
+        department: profile.department || '', // <-- CORREÇÃO
+        
+        // Operacional
         horario: profile.horario || "08:00 às 17:00",
         schedule: Array.isArray(schedule) ? [...schedule] : [],
-        email: profile.email || ""
+        email: profile.email || "",
+        
+        // Repassa outros campos do perfil por garantia
+        ...profile 
     };
 }
 
@@ -169,7 +181,7 @@ function setInterfaceMode(mode) {
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
 
-    // Botão de troca
+    // Botão de troca (Apenas para managers)
     if (state.isDualRole && btnDual) {
         btnDual.classList.remove('hidden'); 
         btnDual.classList.add('flex');
@@ -182,6 +194,7 @@ function setInterfaceMode(mode) {
     }
 
     if (mode === 'admin') {
+        // === MODO ADMIN ===
         state.isAdmin = true; 
         
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea] transition-colors";
@@ -191,6 +204,7 @@ function setInterfaceMode(mode) {
         Admin.initAdminUI(); 
 
     } else {
+        // === MODO COLABORADOR ===
         state.isAdmin = false; 
         
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#2563eb] transition-colors";
@@ -205,7 +219,6 @@ function setInterfaceMode(mode) {
 
         Collab.initCollabUI();
         
-        // CORREÇÃO: Garante nome seguro ao renderizar visão pessoal
         const myName = state.profile?.name || state.profile?.nome || "Usuário";
         updatePersonalView(myName);
     }
