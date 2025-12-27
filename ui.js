@@ -1,4 +1,4 @@
-// ui.js
+// ui.js - Atualizado com Nome + Sobrenome no FDS
 import { state, monthNames, getDaysInMonth, pad } from './config.js';
 
 export function showNotification(msg, type = 'success') {
@@ -109,7 +109,7 @@ export function updateCalendar(name, schedule) {
     });
 }
 
-// --- ATUALIZADO: RENDERIZAÇÃO COMPACTA DE FIM DE SEMANA ---
+// --- RENDERIZAÇÃO COMPACTA DE FIM DE SEMANA ---
 export function renderWeekendDuty() {
     const container = document.getElementById('weekendDutyContainer');
     if (!container) return;
@@ -121,7 +121,7 @@ export function renderWeekendDuty() {
 
     const days = getDaysInMonth(state.selectedMonthObj.year, state.selectedMonthObj.month);
     
-    // Adicionei max-h (altura máxima) e overflow-y-auto para rolar DENTRO do card, não na página toda
+    // Altura máxima ajustada e scroll
     let html = `
         <div class="premium-glass p-3 border border-white/5 flex flex-col max-h-[220px] overflow-hidden">
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2 shrink-0">
@@ -150,7 +150,7 @@ export function renderWeekendDuty() {
         const satWorkers = getWorkersForDay(wk.sat.idx);
         const sunWorkers = getWorkersForDay(wk.sun.idx);
 
-        // Só mostra o card se houver alguém trabalhando no sábado OU no domingo
+        // Só mostra se houver alguém escalado
         if (satWorkers.length > 0 || sunWorkers.length > 0) {
             hasDuty = true;
             const satDate = `${pad(wk.sat.date.getDate())}/${pad(state.selectedMonthObj.month + 1)}`;
@@ -164,7 +164,6 @@ export function renderWeekendDuty() {
                 </div>
                 <div class="space-y-1">`;
                 
-                // SÓ MOSTRA A LINHA DE SÁBADO SE TIVER GENTE
                 if (satWorkers.length > 0) {
                     html += `
                     <div class="flex items-start gap-1.5">
@@ -175,7 +174,6 @@ export function renderWeekendDuty() {
                     </div>`;
                 }
 
-                // SÓ MOSTRA A LINHA DE DOMINGO SE TIVER GENTE
                 if (sunWorkers.length > 0) {
                     html += `
                     <div class="flex items-start gap-1.5">
@@ -205,10 +203,14 @@ function getWorkersForDay(idx) {
 }
 
 function renderPill(name, colorClass) {
-    // Apenas o primeiro nome para economizar espaço no mobile
-    const firstName = name.split(' ')[0]; 
+    // ALTERAÇÃO: Lógica para Primeiro Nome + Último Nome
+    const parts = name.trim().split(/\s+/);
+    const displayName = parts.length > 1 
+        ? `${parts[0]} ${parts[parts.length - 1]}` 
+        : parts[0];
+
     return `<span class="px-1.5 py-px rounded bg-white/5 border border-white/5 text-[8px] text-gray-300 flex items-center gap-1 whitespace-nowrap">
-        <div class="w-1 h-1 rounded-full ${colorClass}"></div>${firstName}
+        <div class="w-1 h-1 rounded-full ${colorClass}"></div>${displayName}
     </span>`;
 }
 
