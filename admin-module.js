@@ -1,4 +1,4 @@
-// admin-module.js - Versão Blindada contra erros de salvamento
+// admin-module.js - Versão Final (CEO Oculto nas Escalas)
 import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc } from './config.js';
 import { showNotification, updateCalendar, renderWeekendDuty } from './ui.js';
 import { doc, getDoc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
@@ -228,6 +228,9 @@ export function renderDailyDashboard() {
     const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
 
     Object.values(state.scheduleData).sort((a,b) => a.name.localeCompare(b.name)).forEach(emp => {
+        // Opcional: Se quiser esconder o CEO do dashboard diário também, pode filtrar aqui:
+        // if (emp.level >= 100) return;
+
         const sToday = emp.schedule[todayIndex] || 'F';
         const sYesterday = todayIndex > 0 ? (emp.schedule[todayIndex - 1] || 'F') : 'F'; 
         
@@ -307,21 +310,19 @@ async function confirmSaveToCloud() {
         try {
             const user = state.scheduleData[emp];
             
-            // 1. Descobre quantos dias tem o mês atual (evita array maior ou menor)
+            // 1. Descobre quantos dias tem o mês atual
             const daysInMonth = new Date(state.selectedMonthObj.year, state.selectedMonthObj.month + 1, 0).getDate();
             
-            // 2. Reconstrói o array item por item para remover 'undefined' (buracos)
+            // 2. Reconstrói o array item por item (evita undefined)
             const safeSchedule = [];
             for (let i = 0; i < daysInMonth; i++) {
                 const val = user.schedule[i];
-                // Se o valor for undefined ou null, força string vazia
                 safeSchedule.push((val === undefined || val === null) ? "" : val);
             }
 
             const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
             const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
             
-            // Salva o array limpo
             await setDoc(ref, { calculatedSchedule: safeSchedule }, { merge: true });
             
             await addAuditLog("Edição de Escala", emp);
@@ -334,11 +335,18 @@ async function confirmSaveToCloud() {
     });
 }
 
+// --- PREENCHIMENTO DO SELECT (COM FILTRO DE CEO) ---
 export function populateEmployeeSelect() {
     const s = document.getElementById('employeeSelect');
     if(s) { 
         s.innerHTML = '<option value="">Selecionar...</option>'; 
-        Object.keys(state.scheduleData || {}).sort().forEach(n => s.innerHTML += `<option value="${n}">${n}</option>`); 
+        Object.keys(state.scheduleData || {}).sort().forEach(n => {
+            const user = state.scheduleData[n];
+            // FILTRO: Esconde CEO (Nível 100) da lista de edição
+            if (user.level < 100) {
+                s.innerHTML += `<option value="${n}">${n}</option>`;
+            }
+        }); 
     }
 }
 
