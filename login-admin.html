@@ -73,6 +73,7 @@
         import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
+        // Função de Modal (Igual ao original)
         function showCustomAlert(title, message, type = 'success') {
             const modal = document.getElementById('customAlertModal');
             const content = document.getElementById('modalContent');
@@ -108,7 +109,7 @@
             } catch (e) { showCustomAlert("Erro", "Erro ao processar solicitação.", "error"); }
         };
 
-        // --- LÓGICA DE LOGIN ATUALIZADA (Busca em 'users' e verifica Cargo) ---
+        // --- LÓGICA DE LOGIN COM NÍVEIS (LEVELS) ---
         document.getElementById('loginAdminForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('btnLogin');
@@ -123,17 +124,20 @@
                 
                 const companyId = sysSnap.data().companyId;
                 
-                // MUDANÇA: Busca na coleção 'users'
+                // Busca na coleção unificada 'users'
                 const userSnap = await getDoc(doc(db, "companies", companyId, "users", cred.user.uid));
 
                 if (userSnap.exists()) {
-                    const role = userSnap.data().role;
-                    // MUDANÇA: Verifica se o cargo é privilegiado
-                    if (role === 'admin' || role === 'Lider' || role === 'Gestor Técnico') {
+                    const userData = userSnap.data();
+                    const level = userData.level || 0; // Pega o nível numérico
+                    
+                    // VERIFICAÇÃO POR NÍVEL:
+                    // Apenas nível 40 (Líder) ou superior entra no Admin
+                    if (level >= 40) {
                         window.location.href = "index.html";
                     } else {
                         await signOut(auth);
-                        throw new Error("Acesso negado: Perfil não administrativo.");
+                        throw new Error("Acesso negado: Apenas Líderes e Gestores.");
                     }
                 } else {
                     await signOut(auth);
@@ -142,7 +146,11 @@
             } catch (error) {
                 btn.innerHTML = 'Acessar Painel'; btn.disabled = false;
                 const errDiv = document.getElementById('loginError');
-                errDiv.innerText = error.message; errDiv.classList.remove('hidden');
+                errDiv.innerText = error.message; 
+                if(error.code === 'permission-denied') {
+                    errDiv.innerText = "Erro de Permissão: Verifique se suas regras do Firebase permitem leitura.";
+                }
+                errDiv.classList.remove('hidden');
             }
         });
 
@@ -155,4 +163,4 @@
         });
     </script>
 </body>
-</html> 
+</html>
