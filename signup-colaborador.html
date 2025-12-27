@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criar Conta | Cronos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="stylesheet" href="styless.css">
+</head>
+<body class="h-screen flex items-center justify-center bg-black p-6 relative overflow-hidden">
+    
+    <div class="absolute inset-0 z-0">
+        <div class="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px]"></div>
+    </div>
+
+    <div class="apple-glass w-full max-w-md p-8 relative z-10 rounded-3xl border border-white/10 shadow-2xl">
+        <div class="text-center mb-6">
+            <h1 class="text-xl font-bold text-white tracking-tight uppercase tracking-widest">Novo Cadastro</h1>
+            <p id="inviteStatus" class="text-[10px] text-gray-500 mt-1 uppercase font-bold tracking-widest">Validando convite...</p>
+        </div>
+        
+        <div id="loadingCheck" class="flex justify-center py-10">
+            <i class="fas fa-circle-notch fa-spin text-3xl text-emerald-500"></i>
+        </div>
+
+        <form id="collabRegisterForm" class="space-y-4 hidden animate-fade-in">
+            <input type="hidden" id="realCompanyId">
+            <input type="hidden" id="validatedInviteCode">
+
+            <div>
+                <label class="text-[9px] uppercase font-bold text-gray-500 ml-1 tracking-widest">Empresa Vinculada</label>
+                <div class="w-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl flex items-center gap-3">
+                    <i class="fas fa-building text-emerald-500"></i>
+                    <input type="text" id="companyDisplay" class="bg-transparent w-full outline-none text-xs font-bold" disabled>
+                </div>
+            </div>
+
+            <div>
+                <label class="text-[9px] uppercase font-bold text-gray-500 ml-1 tracking-widest">Nome Completo</label>
+                <input type="text" id="userName" placeholder="Ex: João Silva" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-xs" required>
+            </div>
+            
+            <div>
+                <label class="text-[9px] uppercase font-bold text-gray-500 ml-1 tracking-widest">E-mail Corporativo</label>
+                <input type="email" id="userEmail" placeholder="nome@empresa.com" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-xs" required>
+            </div>
+            
+            <div class="space-y-2">
+                <label class="text-[9px] uppercase font-bold text-gray-500 ml-1 tracking-widest">Senha de Acesso</label>
+                <div class="relative">
+                    <input type="password" id="userPass" placeholder="Mínimo 6 caracteres" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-xs pr-10" required>
+                    <button type="button" id="togglePassword" class="absolute right-3 top-2.5 text-gray-500 hover:text-white transition-colors">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="regError" class="hidden text-red-400 text-[10px] text-center font-bold p-2 bg-red-500/10 rounded border border-red-500/20 uppercase tracking-widest"></div>
+
+            <button type="submit" id="btnRegister" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg uppercase tracking-widest text-[10px] hover:bg-emerald-500 active:scale-95 transition-all">
+                Finalizar Cadastro
+            </button>
+        </form>
+        
+        <div id="invalidInvite" class="hidden text-center py-4">
+            <div class="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-3 text-red-500">
+                <i class="fas fa-times text-2xl"></i>
+            </div>
+            <h3 class="text-white font-bold mb-1 tracking-tight">Convite Inválido</h3>
+            <p id="errorDetail" class="text-gray-500 text-[10px] mb-4 uppercase tracking-widest leading-relaxed">Este link expirou ou não existe.</p>
+            <a href="start.html" class="text-[10px] text-blue-400 hover:text-white uppercase font-bold tracking-widest transition-colors">Voltar ao Início</a>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, auth } from './config.js';
+        import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+        // Alternar visualização da senha
+        const toggle = document.getElementById('togglePassword');
+        const passInput = document.getElementById('userPass');
+        toggle.onclick = () => {
+            const type = passInput.type === 'password' ? 'text' : 'password';
+            passInput.type = type;
+            toggle.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+        };
+
+        // Validação robusta do convite no carregamento da página
+        async function checkInvite() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const inviteCode = urlParams.get('convite') || window.location.search.split('=')[1];
+
+            if (!inviteCode) {
+                showInvalid("Código de convite não encontrado no link.");
+                return;
+            }
+
+            try {
+                const inviteRef = doc(db, "convites", inviteCode.trim());
+                const inviteSnap = await getDoc(inviteRef);
+
+                if (inviteSnap.exists() && inviteSnap.data().active === true) {
+                    const data = inviteSnap.data();
+                    
+                    // Bloqueia os dados validados no formulário
+                    document.getElementById('realCompanyId').value = data.companyId;
+                    document.getElementById('validatedInviteCode').value = inviteCode.trim();
+                    document.getElementById('companyDisplay').value = data.companyName || "Sitelbra"; 
+                    
+                    document.getElementById('inviteStatus').innerText = "Convite validado com sucesso!";
+                    document.getElementById('loadingCheck').classList.add('hidden');
+                    document.getElementById('collabRegisterForm').classList.remove('hidden');
+                } else {
+                    showInvalid("Este convite expirou ou foi revogado.");
+                }
+            } catch (e) {
+                console.error("Erro na validação:", e);
+                showInvalid("Erro de conexão com o banco de dados.");
+            }
+        }
+
+        function showInvalid(msg) {
+            document.getElementById('loadingCheck').classList.add('hidden');
+            document.getElementById('invalidInvite').classList.remove('hidden');
+            document.getElementById('errorDetail').innerText = msg;
+            document.getElementById('inviteStatus').innerText = "Falha na validação";
+        }
+
+        // Executa a verificação inicial
+        checkInvite();
+
+        // Lógica de Registo do Colaborador
+        document.getElementById('collabRegisterForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnRegister');
+            const companyId = document.getElementById('realCompanyId').value;
+            const name = document.getElementById('userName').value.trim();
+            const email = document.getElementById('userEmail').value.trim();
+            const pass = document.getElementById('userPass').value;
+
+            if(pass.length < 6) {
+                showError("A senha deve ter no mínimo 6 caracteres.");
+                return;
+            }
+
+            btn.disabled = true; 
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Criando conta...';
+
+            try {
+                // 1. Criação do utilizador no Firebase Auth
+                const cred = await createUserWithEmailAndPassword(auth, email, pass);
+                const uid = cred.user.uid;
+
+                // 2. Mapeamento Global (sys_users) para login Multi-tenant
+                await setDoc(doc(db, "sys_users", uid), { 
+                    email, 
+                    companyId, 
+                    role: 'collab', 
+                    createdAt: serverTimestamp() 
+                });
+                
+                // 3. Perfil detalhado dentro da coleção da empresa (Sitelbra)
+                await setDoc(doc(db, "companies", companyId, "colaboradores", uid), {
+                    nome: name, 
+                    email, 
+                    role: "Operador", 
+                    cargo: "Colaborador", 
+                    setorID: "NOC",
+                    horario: "08:00 às 17:00", 
+                    createdAt: serverTimestamp()
+                });
+
+                // 4. Inicialização automática da escala mensal
+                const mesId = "2025-12";
+                await setDoc(doc(db, "companies", companyId, "escalas", mesId, "plantonistas", uid), {
+                    calculatedSchedule: Array(31).fill('F'), 
+                    horario: "08:00 às 17:00"
+                });
+
+                alert("Cadastro realizado com sucesso! Bem-vindo(a).");
+                window.location.href = "login-colaborador.html";
+            } catch (err) {
+                console.error("Erro no cadastro:", err);
+                btn.disabled = false;
+                btn.innerText = "Finalizar Cadastro";
+                showError(err.code === 'auth/email-already-in-use' ? "Este e-mail já está sendo utilizado por outra conta." : "Ocorreu um erro ao processar o seu cadastro.");
+            }
+        };
+
+        function showError(msg) {
+            const errDiv = document.getElementById('regError');
+            errDiv.innerText = msg; 
+            errDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

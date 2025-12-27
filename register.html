@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criar Nova Empresa | Cronos SaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="stylesheet" href="styless.css">
+</head>
+<body class="h-screen flex items-center justify-center bg-black p-6 relative overflow-hidden">
+    
+    <div class="absolute inset-0 z-0">
+        <div class="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[120px]"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[120px]"></div>
+    </div>
+
+    <div class="apple-glass w-full max-w-md p-8 relative z-10 rounded-3xl">
+        <button onclick="window.location.href='start.html'" class="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+            <i class="fas fa-times"></i>
+        </button>
+
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
+                <i class="fas fa-rocket text-2xl text-emerald-400"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Nova Empresa</h1>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-widest mt-2">Crie seu ambiente SaaS em segundos</p>
+        </div>
+        
+        <form id="registerForm" class="space-y-4">
+            <div>
+                <label class="text-[10px] uppercase font-bold text-gray-500 ml-1">Nome da Empresa</label>
+                <input type="text" id="companyName" placeholder="Ex: Tech Solutions Ltda" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-sm" required>
+            </div>
+
+            <div>
+                <label class="text-[10px] uppercase font-bold text-gray-500 ml-1">CNPJ ou CPF</label>
+                <input type="text" id="taxId" placeholder="00.000.000/0000-00" maxlength="18" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-sm" required>
+            </div>
+            
+            <div>
+                <label class="text-[10px] uppercase font-bold text-gray-500 ml-1">E-mail do Admin (Dono)</label>
+                <input type="email" id="adminEmail" placeholder="admin@empresa.com" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-sm" required>
+            </div>
+            
+            <div class="space-y-2">
+                <label class="text-[10px] uppercase font-bold text-gray-500 ml-1">Senha de Acesso</label>
+                <div class="relative">
+                    <input type="password" id="adminPass" placeholder="Mínimo 6 caracteres" class="w-full bg-white/5 border border-white/10 text-white p-3 rounded-xl outline-none focus:border-emerald-500/50 transition-all text-sm pr-10" required>
+                    <button type="button" id="togglePassword" class="absolute right-3 top-3 text-gray-500 hover:text-white transition-colors">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="regError" class="hidden text-red-400 text-[10px] text-center font-bold p-2 bg-red-500/10 rounded border border-red-500/20"></div>
+
+            <button type="submit" id="btnRegister" class="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 active:scale-95 transition-all uppercase tracking-wider text-xs hover:bg-emerald-500">
+                Criar Conta & Acessar
+            </button>
+        </form>
+        
+        <div class="mt-6 text-center">
+            <p class="text-[10px] text-gray-500">Já tem uma conta?</p>
+            <a href="login-admin.html" class="text-xs text-emerald-400 font-bold hover:text-emerald-300 transition-colors uppercase tracking-wide">Fazer Login</a>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, auth } from './config.js';
+        import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+        // LÓGICA DO VER SENHA
+        const togglePassword = document.getElementById('togglePassword');
+        const adminPass = document.getElementById('adminPass');
+        
+        togglePassword.addEventListener('click', () => {
+            const type = adminPass.type === 'password' ? 'text' : 'password';
+            adminPass.type = type;
+            togglePassword.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+        });
+
+        // MÁSCARA INTELIGENTE CPF/CNPJ
+        const taxInput = document.getElementById('taxId');
+        taxInput.addEventListener('input', function(e) {
+            let v = e.target.value.replace(/\D/g, "");
+            if (v.length > 14) v = v.slice(0, 14);
+            
+            if (v.length > 11) {
+                v = v.replace(/^(\d{2})(\d)/, "$1.$2");
+                v = v.replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3");
+                v = v.replace(/\.(\d{3})(\d)/, ".$1/$2");
+                v = v.replace(/(\d{4})(\d)/, "$1-$2");
+            } else {
+                v = v.replace(/(\d{3})(\d)/, "$1.$2");
+                v = v.replace(/(\d{3})(\d)/, "$1.$2");
+                v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+            }
+            e.target.value = v;
+        });
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnRegister');
+            
+            const name = document.getElementById('companyName').value.trim();
+            const taxId = document.getElementById('taxId').value.trim();
+            const email = document.getElementById('adminEmail').value.trim();
+            const pass = adminPass.value;
+
+            if(pass.length < 6) {
+                showError("A senha deve ter no mínimo 6 caracteres.");
+                return;
+            }
+
+            if(taxId.length < 14) { 
+                showError("Por favor, insira um CPF ou CNPJ válido.");
+                return;
+            }
+
+            btn.disabled = true; 
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Criando Empresa...';
+            showError("", true); 
+
+            try {
+                const cred = await createUserWithEmailAndPassword(auth, email, pass);
+                const uid = cred.user.uid;
+                
+                const cleanName = name.toLowerCase()
+                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                    .replace(/[^a-z0-9]/g, '');
+                const companyId = `${cleanName}-${Date.now().toString().slice(-6)}`;
+
+                await setDoc(doc(db, "sys_users", uid), {
+                    email: email,
+                    companyId: companyId,
+                    role: 'owner',
+                    createdAt: serverTimestamp()
+                });
+
+                await setDoc(doc(db, "companies", companyId), {
+                    name: name,
+                    taxId: taxId,
+                    plan: 'free_tier',
+                    active: true,
+                    createdAt: serverTimestamp()
+                });
+
+                await setDoc(doc(db, "companies", companyId, "administradores", uid), {
+                    email: email,
+                    nome: name.split(' ')[0] + " (Admin)",
+                    role: "Gestor",
+                    cargo: "Proprietário",
+                    permissions: "full_access"
+                });
+
+                alert(`Bem-vindo, ${name}!\nSua conta foi criada com sucesso.`);
+                window.location.href = "login-admin.html";
+
+            } catch (err) {
+                console.error(err);
+                let msg = "Erro ao criar conta.";
+                if (err.code === 'auth/email-already-in-use') msg = "E-mail já cadastrado.";
+                showError(msg);
+                btn.disabled = false; 
+                btn.innerText = "Criar Conta & Acessar";
+            }
+        });
+
+        function showError(msg, hide = false) {
+            const errorDiv = document.getElementById('regError');
+            if(hide) {
+                errorDiv.classList.add('hidden');
+            } else {
+                errorDiv.textContent = msg;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

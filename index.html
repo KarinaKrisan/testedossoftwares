@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Cronos System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="styless.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="antialiased selection:bg-blue-500/30 selection:text-white pb-20 md:pb-10">
+    <div id="toastContainer" class="fixed top-4 right-4 left-4 md:left-auto md:top-8 md:right-8 z-[200] space-y-3 pointer-events-none"></div>
+
+    <div class="container mx-auto p-3 md:p-6 max-w-7xl">
+        <header class="mb-4 md:mb-10 flex flex-col gap-3">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <div id="headerIndicator" class="w-1 h-5 md:h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#2563eb] transition-colors"></div>
+                    <h1 class="text-lg md:text-2xl font-bold tracking-tight text-white">Cronos<span id="headerSuffix" class="text-blue-500 text-[10px] align-top ml-1">SYSTEM</span></h1>
+                </div>
+                <button id="btnLogoutMobile" class="md:hidden w-8 h-8 rounded-lg bg-white/5 text-gray-400 border border-white/5 active:bg-red-500/20 active:text-red-400 transition-colors">
+                    <i class="fas fa-power-off text-xs"></i>
+                </button>
+            </div>
+            <div class="flex items-center justify-between gap-3"> 
+                <div id="monthSelectorContainer" class="flex-1 md:w-auto md:flex-none"></div>
+                <button id="btnDualMode" class="hidden shrink-0 group items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 transition-all cursor-pointer ml-auto">
+                    <span id="dualModeText" class="text-[9px] font-bold text-gray-400 group-hover:text-white uppercase tracking-widest">Acessar Admin</span>
+                    <div class="w-5 h-5 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-purple-500/20">
+                        <i id="dualModeIcon" class="fas fa-shield-alt text-[9px] text-gray-400 group-hover:text-purple-400"></i>
+                    </div>
+                </button>
+                <button id="btnLogout" class="hidden md:flex group items-center gap-3 px-5 py-2 rounded-full bg-white/5 border border-white/5 hover:bg-red-500/10 hover:border-red-500/20 transition-all">
+                    <span class="text-[10px] font-bold text-gray-400 group-hover:text-red-400 uppercase tracking-widest">Sair</span>
+                    <div class="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-red-500/20">
+                        <i class="fas fa-power-off text-[10px] text-gray-400 group-hover:text-red-400"></i>
+                    </div>
+                </button>
+            </div>
+        </header>
+
+        <nav id="adminTabNav" class="hidden mb-4 w-full overflow-x-auto pb-1 no-scrollbar">
+            <div class="inline-flex p-1 bg-white/5 rounded-full border border-white/5 backdrop-blur-md min-w-max">
+                <button onclick="window.switchAdminView('daily')" id="btnNavDaily" class="nav-btn px-4 py-2 rounded-full text-[10px] font-medium uppercase tracking-widest text-white/50">Diário</button>
+                <button onclick="window.switchAdminView('edit')" id="btnNavEdit" class="nav-btn px-4 py-2 rounded-full text-[10px] font-medium uppercase tracking-widest text-white/50">Escalas</button>
+                <button onclick="window.switchAdminView('approvals')" id="btnNavApprovals" class="nav-btn px-4 py-2 rounded-full text-[10px] font-medium uppercase tracking-widest text-white/50 relative">
+                    Trocas <span id="notificationBadge" class="hidden absolute top-1 right-1 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                </button>
+                <button onclick="window.switchAdminView('logs')" id="btnNavLogs" class="nav-btn px-4 py-2 rounded-full text-[10px] font-medium uppercase tracking-widest text-white/50">Audit</button>
+            </div>
+        </nav>
+
+        <div id="collabHeader" class="hidden mb-4 pl-1">
+            <h2 id="welcomeUser" class="text-lg font-light text-white tracking-tight"></h2>
+            <p class="text-[9px] uppercase tracking-widest text-gray-500">Painel do Colaborador</p>
+        </div>
+
+        <section id="screenDaily" class="hidden animate-fade-in">
+            <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
+                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
+                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-emerald-400 tracking-widest">Turno</span>
+                        <span id="countAtivo" class="text-[10px] font-mono text-white bg-white/10 px-1.5 py-px rounded">0</span>
+                    </div>
+                    <div id="listAtivo" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                </div>
+                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
+                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
+                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-purple-500 tracking-widest">Off/Enc</span>
+                        <span id="countEncerrado" class="text-[10px] font-mono text-white/50 bg-white/10 px-1.5 py-px rounded">0</span>
+                    </div>
+                    <div id="listEncerrado" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                </div>
+                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
+                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
+                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-yellow-500 tracking-widest">Folga</span>
+                        <span id="countFolga" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
+                    </div>
+                    <div id="listFolga" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                </div>
+                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
+                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
+                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-red-500 tracking-widest">Férias</span>
+                        <span id="countFerias" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
+                    </div>
+                    <div id="listFerias" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="screenEdit" class="hidden animate-fade-in">
+            <div class="flex flex-col lg:flex-row gap-4 md:gap-8 items-start">
+                <aside class="w-full lg:w-1/3 space-y-3 flex flex-col">
+                    <div id="adminControls" class="premium-glass p-3 md:p-6 shrink-0 hidden">
+                        <div id="inviteWidgetContainer" class="mb-4"></div>
+                        <label class="text-[9px] font-bold text-gray-400 uppercase mb-2 block tracking-widest">Colaborador</label>
+                        <select id="employeeSelect" class="w-full bg-black/30 border border-white/10 text-white rounded-lg p-2.5 text-xs outline-none mb-3" onchange="window.updatePersonalView(this.value)"></select>
+                        <button id="btnSaveConfirm" class="w-full bg-white text-black font-bold py-2.5 rounded-lg text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95">Salvar Escala</button>
+                    </div>
+                    <div id="personalInfoCard"></div> 
+                    <div id="weekendDutyContainer"></div> 
+                </aside>
+                <main class="w-full lg:w-2/3">
+                    <div id="calendarContainer" class="hidden">
+                        <div id="calendarGrid" class="premium-glass calendar-grid-container"></div>
+                        <div class="flex flex-wrap justify-center gap-2 mt-4 px-2">
+                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#10b981]"></div>T</span>
+                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#fbbf24]"></div>F</span>
+                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#40E0D0]"></div>Sáb</span>
+                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#4169E1]"></div>Dom</span>
+                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#ef4444]"></div>Fér</span>
+                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-orange-500"></div>Af</span>
+                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-pink-500"></div>LM</span>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </section>
+        
+        <section id="screenLogs" class="hidden animate-fade-in"></section>
+        <section id="screenApprovals" class="hidden animate-fade-in max-w-2xl mx-auto"><div id="adminRequestsListSide" class="space-y-3"></div></section>
+    </div>
+
+    <div id="customConfirmModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity">
+        <div id="modalContent" class="premium-glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl transform transition-all scale-95 opacity-0 text-center">
+            <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fas fa-exclamation-triangle text-red-500"></i></div>
+            <h3 class="text-lg font-bold text-white mb-2 tracking-tight">Confirmar Ação?</h3>
+            <p id="modalMessage" class="text-xs text-gray-400 mb-6 leading-relaxed"></p>
+            <div class="flex gap-3">
+                <button id="modalCancel" class="flex-1 py-3 rounded-xl bg-white/5 text-white text-[10px] font-bold uppercase tracking-widest">Cancelar</button>
+                <button id="modalConfirm" class="flex-1 py-3 rounded-xl bg-red-600 text-white text-[10px] font-bold uppercase tracking-widest">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="successAnimModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div class="text-center animate-bounce-in">
+            <div class="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg"><i class="fas fa-check text-3xl text-white"></i></div>
+            <h3 class="text-white font-bold tracking-widest uppercase text-sm">Ação Concluída</h3>
+        </div>
+    </div>
+
+    <script type="module" src="main.js"></script>
+</body>
+</html>
