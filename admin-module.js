@@ -132,13 +132,13 @@ async function renderInviteWidget() {
                 try {
                     const code = Math.random().toString(36).substring(2, 5).toUpperCase() + '-' + Math.random().toString(36).substring(2, 5).toUpperCase();
                     
-                    // BUSCA DINÂMICA DO NOME DA ORGANIZAÇÃO (Ex: Sitelbra)
+                    // BUSCA DINÂMICA DO NOME DA ORGANIZAÇÃO
                     const companySnap = await getDoc(doc(db, "companies", state.companyId));
                     const companyName = companySnap.exists() ? (companySnap.data().name || companySnap.data().nome) : "Minha Empresa";
 
                     await setDoc(doc(db, "convites", code), { 
                         companyId: state.companyId, 
-                        companyName: companyName, // Salva o nome da empresa, não da Karina Krisan
+                        companyName: companyName,
                         createdBy: state.currentUser.uid, 
                         createdAt: serverTimestamp(), 
                         active: true 
@@ -158,18 +158,47 @@ async function renderInviteWidget() {
 // --- DASHBOARD E ESCALAS ---
 export function renderDailyDashboard() {
     const today = new Date().getDate() - 1; 
-    const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [] };
+    
+    // Agora inclui Afastado e Licenca
+    const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
 
     Object.values(state.scheduleData).sort((a,b) => a.name.localeCompare(b.name)).forEach(emp => {
         const sToday = emp.schedule[today] || 'F';
-        let group = ['FE', 'A', 'LM'].includes(sToday) ? 'Ferias' : (sToday === 'T' ? 'Ativo' : 'Folga');
-        if (group) groups[group].push({ ...emp, status: sToday });
+        let group = 'Encerrado';
+
+        if (sToday === 'T') {
+            group = 'Ativo';
+        } else if (['F', 'FS', 'FD'].includes(sToday)) {
+            group = 'Folga';
+        } else if (sToday === 'FE') {
+            group = 'Ferias';
+        } else if (sToday === 'A') {
+            group = 'Afastado';
+        } else if (sToday === 'LM') {
+            group = 'Licenca';
+        }
+
+        if (groups[group]) groups[group].push({ ...emp, status: sToday });
     });
 
     const render = (k, l) => {
-        const count = document.getElementById(`count${k}`); if(count) count.innerText = l.length;
+        const count = document.getElementById(`count${k}`); 
+        if(count) count.innerText = l.length;
+        
         const list = document.getElementById(`list${k}`);
-        if(list) list.innerHTML = l.map(u => `<div class="dashboard-pill"><div class="pill-indicator bg-blue-500"></div><span class="text-[9px] font-bold text-white">${u.name}</span><span class="text-[8px] font-black opacity-40 text-white">${u.status}</span></div>`).join('');
+        if(list) {
+            // Definição das cores das pílulas no dashboard
+            let pillColor = 'bg-purple-500'; // Default para Encerrado/Outros
+            if (k === 'Ativo') pillColor = 'bg-blue-500';
+            if (k === 'Folga') pillColor = 'bg-yellow-500';
+            if (k === 'Ferias') pillColor = 'bg-red-500';
+            if (k === 'Afastado') pillColor = 'bg-orange-500';
+            if (k === 'Licenca') pillColor = 'bg-pink-500';
+
+            list.innerHTML = l.map(u => 
+                `<div class="dashboard-pill"><div class="pill-indicator ${pillColor}"></div><span class="text-[9px] font-bold text-white">${u.name}</span><span class="text-[8px] font-black opacity-40 text-white">${u.status}</span></div>`
+            ).join('');
+        }
     };
     Object.keys(groups).forEach(k => render(k, groups[k]));
 }
