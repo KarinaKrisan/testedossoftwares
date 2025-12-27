@@ -1,4 +1,4 @@
-// collab-module.js - Versão Final SaaS
+// collab-module.js - Versão Final SaaS (Opções Corrigidas)
 import { db, state, getCompanyCollection, getCompanyDoc, pad, monthNames, isValidShiftStartDate } from './config.js';
 import { addDoc, serverTimestamp, query, where, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { updatePersonalView, updateWeekendTable, showNotification } from './ui.js';
@@ -35,7 +35,6 @@ export function destroyCollabUI() {
     if(sel) sel.disabled = false; // Destrava o seletor ao voltar para Admin
 }
 
-// ... Resto do código (setupEvents, renderMiniCal, sendReq, etc) permanece igual ...
 function setupEvents() {
     const bNew = document.getElementById('btnNewRequestDynamic'); if(bNew) bNew.onclick = openModal;
     const bSend = document.getElementById('btnSendRequest'); if(bSend) bSend.onclick = sendReq;
@@ -62,7 +61,6 @@ function renderMiniCal() {
 }
 
 export function handleCollabCellClick() { 
-    // Em vez de só notificar erro, aqui podemos abrir o modal de troca diretamente se desejar
     showNotification("Use o botão 'Nova Solicitação' para trocas.", "info"); 
 }
 
@@ -70,15 +68,27 @@ function openModal() {
     document.getElementById('requestModal').classList.remove('hidden');
     const sel = document.getElementById('reqTargetEmployee');
     sel.innerHTML = '<option value="">Selecione...</option>';
-    Object.keys(state.scheduleData).forEach(n => { if(n !== (state.profile.name||state.profile.nome)) sel.innerHTML += `<option value="${n}">${n}</option>`; });
+    // Preenche seletor de colegas (excluindo o próprio usuário)
+    Object.keys(state.scheduleData).forEach(n => { 
+        if(n !== (state.profile.name||state.profile.nome)) sel.innerHTML += `<option value="${n}">${n}</option>`; 
+    });
+    
+    // Preenche seletor de turnos
     document.getElementById('reqNewShift').innerHTML = shifts.map(s=>`<option value="${s}">${s}</option>`).join('');
-    handleType();
+    
+    handleType(); // Ajusta a visibilidade inicial dos campos
 }
 
 function handleType() {
     const t = document.getElementById('reqType').value;
-    document.getElementById('divReqTarget').classList.toggle('hidden', t === 'troca_turno');
-    document.getElementById('divReqShift').classList.toggle('hidden', t !== 'troca_turno');
+    
+    // Lógica para esconder/mostrar campos
+    // Se for 'novo_turno', mostra o seletor de horário e esconde o colega
+    // Se for 'troca_dia' ou 'troca_folga', mostra o colega e esconde o horário
+    const isShiftChange = (t === 'novo_turno');
+
+    document.getElementById('divReqTarget').classList.toggle('hidden', isShiftChange);
+    document.getElementById('divReqShift').classList.toggle('hidden', !isShiftChange);
 }
 
 async function sendReq() {
@@ -88,24 +98,45 @@ async function sendReq() {
     let target = null, tUid = null, shift = null;
 
     try {
-        if(!date) throw new Error("Data inválida.");
-        if (type === 'troca_turno') {
-            if(!isValidShiftStartDate(date)) throw new Error("Apenas após dia 25.");
+        if(!date) throw new Error("Data inválida. Use o calendário.");
+        
+        // --- CASO 1: NOVO TURNO (Vai para o Líder) ---
+        if (type === 'novo_turno') {
+            // Regra de negócio (opcional): if(!isValidShiftStartDate(date)) throw new Error("Apenas após dia 25.");
             shift = document.getElementById('reqNewShift').value;
-            target = 'LÍDER'; tUid = 'ADMIN';
-        } else {
+            target = 'LÍDER'; 
+            tUid = 'ADMIN'; 
+        } 
+        // --- CASO 2: TROCA DE DIA/FOLGA (Vai para o Colega) ---
+        else {
             target = document.getElementById('reqTargetEmployee').value;
-            tUid = Object.values(state.scheduleData).find(u=>u.name===target)?.uid;
+            if(!target) throw new Error("Selecione um colega para trocar.");
+            
+            // Busca UID do alvo
+            const targetData = Object.values(state.scheduleData).find(u=>u.name===target);
+            if(targetData) tUid = targetData.uid;
+            else throw new Error("Colega não encontrado na base.");
         }
 
         const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
+        
         await addDoc(getCompanyCollection("solicitacoes"), {
-            monthId: docId, requester: (state.profile.name||state.profile.nome), requesterUid: state.currentUser.uid,
-            dayIndex: parseInt(date.split('-')[2])-1, type, target, targetUid: tUid, desiredShift: shift, reason,
-            status: type==='troca_turno'?'pending_leader':'pending_peer', createdAt: serverTimestamp()
+            monthId: docId, 
+            requester: (state.profile.name||state.profile.nome), 
+            requesterUid: state.currentUser.uid,
+            dayIndex: parseInt(date.split('-')[2])-1, 
+            type, 
+            target, 
+            targetUid: tUid, 
+            desiredShift: shift, 
+            reason,
+            // Novo turno vai direto pro líder; Trocas precisam de aceite do colega primeiro
+            status: type === 'novo_turno' ? 'pending_leader' : 'pending_peer', 
+            createdAt: serverTimestamp()
         });
+        
         document.getElementById('requestModal').classList.add('hidden');
-        showNotification("Enviado!");
+        showNotification("Solicitação enviada com sucesso!");
     } catch(e) { showNotification(e.message, "error"); }
 }
 
@@ -114,7 +145,16 @@ function initRequestsTab() {
     const q = query(getCompanyCollection("solicitacoes"), where("monthId", "==", docId), where("requester", "==", (state.profile.name||state.profile.nome)));
     onSnapshot(q, (snap) => {
         const list = document.getElementById('sentRequestsList');
-        if(list) list.innerHTML = snap.docs.map(d => { const r = d.data(); return `<div class="apple-glass p-2 mb-2 text-[9px] relative"><button onclick="window.deleteRequest('${d.id}')" class="absolute top-2 right-2 text-red-400"><i class="fas fa-trash"></i></button><strong>${r.type.replace(/_/g,' ')} • DIA ${r.dayIndex+1}</strong><br><span class="text-gray-400">${r.status}</span></div>` }).join('') || '<p class="text-center text-gray-500 text-[8px]">Vazio</p>';
+        if(list) list.innerHTML = snap.docs.map(d => { 
+            const r = d.data(); 
+            // Formata o tipo para ficar bonito na lista
+            let typeLabel = "Troca";
+            if(r.type === 'troca_dia') typeLabel = "Troca de Dia";
+            if(r.type === 'troca_folga') typeLabel = "Troca de Folga";
+            if(r.type === 'novo_turno') typeLabel = "Novo Turno";
+
+            return `<div class="apple-glass p-2 mb-2 text-[9px] relative"><button onclick="window.deleteRequest('${d.id}')" class="absolute top-2 right-2 text-red-400"><i class="fas fa-trash"></i></button><strong>${typeLabel} • DIA ${r.dayIndex+1}</strong><br><span class="text-gray-400">${r.status}</span></div>` 
+        }).join('') || '<p class="text-center text-gray-500 text-[8px]">Vazio</p>';
     });
 }
 
