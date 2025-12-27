@@ -57,7 +57,7 @@
         </div>
 
         <section id="screenDaily" class="hidden animate-fade-in">
-            <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6">
                 <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
                     <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
                         <span class="text-[9px] md:text-[10px] font-bold uppercase text-emerald-400 tracking-widest">Turno</span>
@@ -65,6 +65,7 @@
                     </div>
                     <div id="listAtivo" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
+
                 <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
                     <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
                         <span class="text-[9px] md:text-[10px] font-bold uppercase text-purple-500 tracking-widest">Off/Enc</span>
@@ -72,6 +73,7 @@
                     </div>
                     <div id="listEncerrado" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
+
                 <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
                     <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
                         <span class="text-[9px] md:text-[10px] font-bold uppercase text-yellow-500 tracking-widest">Folga</span>
@@ -79,12 +81,29 @@
                     </div>
                     <div id="listFolga" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
+
                 <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
                     <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
                         <span class="text-[9px] md:text-[10px] font-bold uppercase text-red-500 tracking-widest">Férias</span>
                         <span id="countFerias" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
                     </div>
                     <div id="listFerias" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                </div>
+
+                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
+                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
+                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-orange-500 tracking-widest">Afastado</span>
+                        <span id="countAfastado" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
+                    </div>
+                    <div id="listAfastado" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
+                </div>
+
+                <div class="premium-glass p-1 flex flex-col h-[400px] md:h-[500px]">
+                    <div class="p-2 md:p-4 border-b border-white/5 flex justify-between items-center shrink-0">
+                        <span class="text-[9px] md:text-[10px] font-bold uppercase text-pink-500 tracking-widest">Licença</span>
+                        <span id="countLicenca" class="text-[10px] font-mono text-white/80 bg-white/10 px-1.5 py-px rounded">0</span>
+                    </div>
+                    <div id="listLicenca" class="p-1.5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1"></div>
                 </div>
             </div>
         </section>
