@@ -1,5 +1,5 @@
 // admin-module.js - SaaS Dinâmico Multi-tenant
-import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc, isWorkingTime } from './config.js';
+import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc } from './config.js';
 import { showNotification, updateCalendar, renderWeekendDuty } from './ui.js';
 import { doc, getDoc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
@@ -20,9 +20,8 @@ export function switchAdminView(view) {
         }
     });
 
-    // Lógica específica por visualização
     if (view === 'daily') renderDailyDashboard();
-    if (view === 'logs') renderAuditLogs(); // <--- CHAMA A RENDERIZAÇÃO DOS LOGS
+    if (view === 'logs') renderAuditLogs();
     
     const tb = document.getElementById('editToolbar');
     if (view === 'edit') { 
@@ -45,6 +44,7 @@ export function initAdminUI() {
     renderInviteWidget(); 
     switchAdminView('daily');
     
+    // Atualiza o dashboard a cada minuto para mover cartões automaticamente
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
     dailyUpdateInterval = setInterval(() => { 
         const screen = document.getElementById('screenDaily');
@@ -52,7 +52,7 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- RENDERIZAÇÃO DE LOGS (NOVA FUNÇÃO) ---
+// --- RENDERIZAÇÃO DE LOGS ---
 function renderAuditLogs() {
     const container = document.getElementById('screenLogs');
     if(!container) return;
@@ -213,22 +213,67 @@ async function renderInviteWidget() {
     } catch(e) { console.error(e); }
 }
 
-// --- DASHBOARD E ESCALAS ---
+// --- DASHBOARD INTELIGENTE 12x36 ---
 export function renderDailyDashboard() {
-    const today = new Date().getDate() - 1; 
+    const todayIndex = new Date().getDate() - 1; 
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    // Helper para converter string de horário "HH:MM" em minutos absolutos
+    const getMins = (str) => {
+        if(!str) return 0;
+        const [h, m] = str.split(':').map(Number);
+        return h * 60 + m;
+    };
+
     const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
 
     Object.values(state.scheduleData).sort((a,b) => a.name.localeCompare(b.name)).forEach(emp => {
-        const sToday = emp.schedule[today] || 'F';
+        const sToday = emp.schedule[todayIndex] || 'F';
+        const sYesterday = todayIndex > 0 ? (emp.schedule[todayIndex - 1] || 'F') : 'F'; // Status de ontem
+        
         let group = 'Encerrado';
 
-        if (sToday === 'T') {
-            if (isWorkingTime(emp.horario)) {
-                group = 'Ativo';
+        // Lógica de Detecção de Horário Noturno
+        let isNightShift = false;
+        let startMin = 480; // Default 08:00
+        let endMin = 1020;  // Default 17:00
+        
+        const times = (emp.horario || "08:00 às 17:00").match(/(\d{1,2}:\d{2})/g);
+        if (times && times.length >= 2) {
+            startMin = getMins(times[0]);
+            endMin = getMins(times[1]);
+            if (endMin < startMin) isNightShift = true; // Cruza meia-noite (ex: 19:30 às 07:30)
+        }
+
+        // --- MÁQUINA DE ESTADOS DO COLABORADOR ---
+
+        // 1. Caso Bruno: Hoje é Folga (F), mas Ontem foi Turno (T) E é escala noturna.
+        // Ele ainda está trabalhando na manhã de hoje até o turno acabar.
+        if (sToday !== 'T' && sYesterday === 'T' && isNightShift && currentMinutes < endMin) {
+            group = 'Ativo';
+        }
+        // 2. Caso Padrão de Turno (T)
+        else if (sToday === 'T') {
+            if (isNightShift) {
+                // Caso Leandro: Escala noturna no dia de início.
+                // Só fica "Ativo" se já passou da hora de entrada (startMin).
+                // Antes disso (durante o dia), ele está "Off/Encerrado".
+                if (currentMinutes >= startMin) {
+                    group = 'Ativo';
+                } else {
+                    group = 'Encerrado'; // Off aguardando a noite chegar
+                }
             } else {
-                group = 'Encerrado';
+                // Turno Diurno Normal (ex: 08:00 às 17:00)
+                if (currentMinutes >= startMin && currentMinutes < endMin) {
+                    group = 'Ativo';
+                } else {
+                    group = 'Encerrado'; // Fora do expediente
+                }
             }
-        } 
+        }
+        // 3. Status Especiais
         else if (['F', 'FS', 'FD'].includes(sToday)) group = 'Folga';
         else if (sToday === 'FE') group = 'Ferias';
         else if (sToday === 'A') group = 'Afastado';
@@ -338,12 +383,8 @@ async function internalApplyLogFilter() {
     const q = query(getCompanyCollection("logs_auditoria"), orderBy("timestamp", "desc"));
     onSnapshot(q, (snap) => {
         allLoadedLogs = snap.docs.map(d => ({ date: d.data().timestamp?.toDate().toLocaleString()||'-', admin: d.data().adminEmail||'Sys', action: d.data().action||'-', target: d.data().target||'-' }));
-        
-        // ATUALIZAÇÃO EM TEMPO REAL: Se a tela de logs estiver visível, atualiza ela.
         const logsScreen = document.getElementById('screenLogs');
-        if (logsScreen && !logsScreen.classList.contains('hidden')) {
-            renderAuditLogs();
-        }
+        if (logsScreen && !logsScreen.classList.contains('hidden')) renderAuditLogs();
     });
 }
 
