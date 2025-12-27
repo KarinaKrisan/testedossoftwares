@@ -1,9 +1,11 @@
-// ui.js - Atualizado com Nome + Sobrenome no FDS
+// ui.js - Versão Final (Com lógica de Nome + Sobrenome)
 import { state, monthNames, getDaysInMonth, pad } from './config.js';
 
+// --- SISTEMA DE NOTIFICAÇÃO (TOAST) ---
 export function showNotification(msg, type = 'success') {
     const container = document.getElementById('toastContainer');
     if (!container) return;
+    
     const toast = document.createElement('div');
     const colorClass = type === 'success' ? 'border-l-emerald-500 bg-[#064e3b]/90' : 'border-l-red-500 bg-[#7f1d1d]/90';
     const icon = type === 'success' ? 'fa-check text-emerald-400' : 'fa-times text-red-400';
@@ -22,6 +24,8 @@ export function showNotification(msg, type = 'success') {
     `;
     
     container.appendChild(toast);
+    
+    // Auto remove após 4 segundos
     setTimeout(() => { 
         toast.style.opacity = '0'; 
         toast.style.transform = 'translateY(-10px)';
@@ -29,21 +33,26 @@ export function showNotification(msg, type = 'success') {
     }, 4000);
 }
 
+// --- SELETOR DE MÊS ---
 export function renderMonthSelector(onPrev, onNext) {
     const container = document.getElementById('monthSelectorContainer');
     if (!container) return;
+    
     const cur = state.selectedMonthObj;
     const label = `${monthNames[cur.month]} <span class="text-white/40 font-light ml-1">${cur.year}</span>`;
+    
     container.innerHTML = `
         <div class="flex items-center gap-1 bg-white/5 rounded-full p-1 border border-white/5">
             <button id="btnMonthPrev" class="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"><i class="fas fa-chevron-left text-[8px]"></i></button>
             <div class="text-[9px] font-bold tracking-widest uppercase text-white px-2 min-w-[80px] text-center">${label}</div>
             <button id="btnMonthNext" class="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-colors"><i class="fas fa-chevron-right text-[8px]"></i></button>
         </div>`;
+        
     document.getElementById('btnMonthPrev').onclick = onPrev;
     document.getElementById('btnMonthNext').onclick = onNext;
 }
 
+// --- VISÃO PESSOAL (PERFIL + CALENDÁRIO) ---
 export function updatePersonalView(uidOrName) {
     const calContainer = document.getElementById('calendarContainer');
     const card = document.getElementById('personalInfoCard');
@@ -57,6 +66,7 @@ export function updatePersonalView(uidOrName) {
     const emp = state.scheduleData[uidOrName];
     if (!emp) return;
 
+    // Renderiza Card do Usuário
     if (card) {
         card.innerHTML = `
         <div class="premium-glass p-3 flex items-center gap-3 border-l-2 border-blue-500">
@@ -76,23 +86,33 @@ export function updatePersonalView(uidOrName) {
     
     if(calContainer) calContainer.classList.remove('hidden');
     updateCalendar(emp.name, emp.schedule);
+    
+    // Atualiza também o painel de FDS
     renderWeekendDuty(); 
 }
 
+// --- RENDERIZA O GRID DO CALENDÁRIO ---
 export function updateCalendar(name, schedule) {
     const grid = document.getElementById('calendarGrid');
     if (!grid) return;
+    
     grid.innerHTML = '';
     const realToday = new Date(); realToday.setHours(0,0,0,0);
+    
+    // Cabeçalho Dias da Semana
     ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].forEach(d => {
         const h = document.createElement('div');
         h.className = 'text-[8px] font-bold text-gray-500 uppercase text-center pb-1';
         h.textContent = d;
         grid.appendChild(h);
     });
+    
     const days = getDaysInMonth(state.selectedMonthObj.year, state.selectedMonthObj.month);
+    
+    // Espaços vazios antes do dia 1
     for (let i = 0; i < days[0].getDay(); i++) grid.appendChild(document.createElement('div'));
     
+    // Dias do Mês
     days.forEach((day, i) => {
         const s = schedule[i] || 'F';
         const isToday = day.getTime() === realToday.getTime();
@@ -102,6 +122,7 @@ export function updateCalendar(name, schedule) {
         const cell = document.createElement('div');
         cell.className = `calendar-cell status-${s} ${isToday ? 'is-today' : ''} ${isPast ? 'is-past' : ''}`;
         
+        // Se for admin, permite clicar para editar
         if (state.isAdmin) cell.onclick = () => window.handleCellClick(name, i);
         
         cell.innerHTML = `<span class="day-number">${day.getDate()}</span><span class="day-label">${labels[s] || s}</span>`;
@@ -121,7 +142,6 @@ export function renderWeekendDuty() {
 
     const days = getDaysInMonth(state.selectedMonthObj.year, state.selectedMonthObj.month);
     
-    // Altura máxima ajustada e scroll
     let html = `
         <div class="premium-glass p-3 border border-white/5 flex flex-col max-h-[220px] overflow-hidden">
             <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2 flex items-center gap-2 shrink-0">
@@ -132,6 +152,7 @@ export function renderWeekendDuty() {
     const weekends = [];
     let currentWeekend = { sat: null, sun: null };
 
+    // Agrupa Sábados e Domingos
     days.forEach((day, idx) => {
         if (day.getDay() === 6) { 
             currentWeekend.sat = { date: day, idx: idx };
@@ -150,7 +171,7 @@ export function renderWeekendDuty() {
         const satWorkers = getWorkersForDay(wk.sat.idx);
         const sunWorkers = getWorkersForDay(wk.sun.idx);
 
-        // Só mostra se houver alguém escalado
+        // Só renderiza o card se houver alguém escalado
         if (satWorkers.length > 0 || sunWorkers.length > 0) {
             hasDuty = true;
             const satDate = `${pad(wk.sat.date.getDate())}/${pad(state.selectedMonthObj.month + 1)}`;
@@ -193,6 +214,7 @@ export function renderWeekendDuty() {
     container.innerHTML = html;
 }
 
+// Filtra quem trabalha no dia (FS, FD, ou T)
 function getWorkersForDay(idx) {
     const workers = [];
     Object.values(state.scheduleData).forEach(emp => {
@@ -202,9 +224,10 @@ function getWorkersForDay(idx) {
     return workers;
 }
 
+// Gera a "pílula" com o nome abreviado (Nome + Sobrenome)
 function renderPill(name, colorClass) {
-    // ALTERAÇÃO: Lógica para Primeiro Nome + Último Nome
     const parts = name.trim().split(/\s+/);
+    // Pega o primeiro e o último nome se houver mais de um
     const displayName = parts.length > 1 
         ? `${parts[0]} ${parts[parts.length - 1]}` 
         : parts[0];
@@ -214,5 +237,6 @@ function renderPill(name, colorClass) {
     </span>`;
 }
 
+// Funções de placeholder para evitar erros se chamadas de fora
 export function updateWeekendTable() {}
 export function switchSubTab() {}
