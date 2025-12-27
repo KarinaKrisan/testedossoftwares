@@ -79,7 +79,7 @@ function showSuccessAnim(text = "Concluído") {
     setTimeout(() => successModal.classList.add('hidden'), 2000);
 }
 
-// --- GESTÃO DE CONVITES (Sincronizado com Nome da Empresa) ---
+// --- GESTÃO DE CONVITES ---
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer') || document.getElementById('adminControls');
     if (!container) return;
@@ -132,7 +132,6 @@ async function renderInviteWidget() {
                 try {
                     const code = Math.random().toString(36).substring(2, 5).toUpperCase() + '-' + Math.random().toString(36).substring(2, 5).toUpperCase();
                     
-                    // BUSCA DINÂMICA DO NOME DA ORGANIZAÇÃO
                     const companySnap = await getDoc(doc(db, "companies", state.companyId));
                     const companyName = companySnap.exists() ? (companySnap.data().name || companySnap.data().nome) : "Minha Empresa";
 
@@ -155,11 +154,11 @@ async function renderInviteWidget() {
     } catch(e) { console.error(e); }
 }
 
-// --- DASHBOARD E ESCALAS ---
+// --- DASHBOARD E ESCALAS (SLIM UPDATE) ---
 export function renderDailyDashboard() {
     const today = new Date().getDate() - 1; 
     
-    // Agora inclui Afastado e Licenca
+    // Grupos separados
     const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
 
     Object.values(state.scheduleData).sort((a,b) => a.name.localeCompare(b.name)).forEach(emp => {
@@ -187,16 +186,24 @@ export function renderDailyDashboard() {
         
         const list = document.getElementById(`list${k}`);
         if(list) {
-            // Definição das cores das pílulas no dashboard
-            let pillColor = 'bg-purple-500'; // Default para Encerrado/Outros
-            if (k === 'Ativo') pillColor = 'bg-blue-500';
-            if (k === 'Folga') pillColor = 'bg-yellow-500';
-            if (k === 'Ferias') pillColor = 'bg-red-500';
-            if (k === 'Afastado') pillColor = 'bg-orange-500';
-            if (k === 'Licenca') pillColor = 'bg-pink-500';
+            // Cores das pílulas internas
+            let color = 'bg-gray-600';
+            if (k === 'Ativo') color = 'bg-emerald-500';
+            if (k === 'Folga') color = 'bg-yellow-500';
+            if (k === 'Ferias') color = 'bg-red-500';
+            if (k === 'Afastado') color = 'bg-orange-500';
+            if (k === 'Licenca') color = 'bg-pink-500';
+            if (k === 'Encerrado') color = 'bg-purple-500';
 
-            list.innerHTML = l.map(u => 
-                `<div class="dashboard-pill"><div class="pill-indicator ${pillColor}"></div><span class="text-[9px] font-bold text-white">${u.name}</span><span class="text-[8px] font-black opacity-40 text-white">${u.status}</span></div>`
+            // Geração SLIM dos itens da lista (Compacto)
+            list.innerHTML = l.map(u => `
+                <div class="flex items-center justify-between bg-white/5 border border-white/5 rounded px-2 py-1 hover:bg-white/10 transition-colors group">
+                    <div class="flex items-center gap-2 overflow-hidden">
+                        <div class="w-1 h-3 rounded-full ${color} shadow-[0_0_5px_rgba(0,0,0,0.5)]"></div>
+                        <span class="text-[9px] font-medium text-gray-300 group-hover:text-white truncate max-w-[80px] md:max-w-[100px]">${u.name}</span>
+                    </div>
+                    <span class="text-[8px] font-mono text-white/30 ml-2">${u.status}</span>
+                </div>`
             ).join('');
         }
     };
@@ -228,7 +235,7 @@ export function populateEmployeeSelect() {
     }
 }
 
-// --- FERRAMENTAS DE EDIÇÃO RESTAURADAS ---
+// --- FERRAMENTAS DE EDIÇÃO ---
 function renderEditToolbar() {
     if (document.getElementById('editToolbar')) return;
     const toolbar = document.createElement('div');
