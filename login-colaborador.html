@@ -60,8 +60,8 @@
             <div id="modalIconBg" class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
                 <i id="modalIcon" class="fas fa-envelope text-2xl text-blue-400"></i>
             </div>
-            <h3 id="modalTitle" class="text-lg font-bold text-white mb-2 tracking-tight">Verifique seu E-mail</h3>
-            <p id="modalMessage" class="text-xs text-gray-400 mb-6 leading-relaxed">Enviamos um link de redefinição para você.</p>
+            <h3 id="modalTitle" class="text-lg font-bold text-white mb-2 tracking-tight">Título</h3>
+            <p id="modalMessage" class="text-xs text-gray-400 mb-6 leading-relaxed">Mensagem</p>
             <button id="modalOkBtn" class="w-full py-3.5 rounded-xl bg-blue-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20">
                 Entendido
             </button>
@@ -73,7 +73,6 @@
         import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
-        // Função para exibir o modal customizado
         function showCustomAlert(title, message, type = 'success') {
             const modal = document.getElementById('customAlertModal');
             const content = document.getElementById('modalContent');
@@ -83,13 +82,11 @@
             const msgEl = document.getElementById('modalMessage');
             const btn = document.getElementById('modalOkBtn');
 
-            // Configuração Visual baseada no tipo (Tema Azul)
             if (type === 'error') {
                 icon.className = 'fas fa-exclamation-triangle text-2xl text-red-400';
                 iconBg.className = 'w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/30';
                 btn.className = 'w-full py-3.5 rounded-xl bg-red-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 transition-colors shadow-lg';
             } else {
-                // Sucesso / Info (Azul Collab)
                 icon.className = 'fas fa-check text-2xl text-blue-400';
                 iconBg.className = 'w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30';
                 btn.className = 'w-full py-3.5 rounded-xl bg-blue-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-colors shadow-lg';
@@ -97,36 +94,21 @@
 
             titleEl.innerText = title;
             msgEl.innerText = message;
-
             modal.classList.remove('hidden');
-            setTimeout(() => {
-                content.classList.replace('opacity-0', 'opacity-100');
-                content.classList.replace('scale-95', 'scale-100');
-            }, 10);
-
-            btn.onclick = () => {
-                content.classList.replace('opacity-100', 'opacity-0');
-                content.classList.replace('scale-100', 'scale-95');
-                setTimeout(() => modal.classList.add('hidden'), 300);
-            };
+            setTimeout(() => { content.classList.replace('opacity-0', 'opacity-100'); content.classList.replace('scale-95', 'scale-100'); }, 10);
+            btn.onclick = () => { content.classList.replace('opacity-100', 'opacity-0'); content.classList.replace('scale-100', 'scale-95'); setTimeout(() => modal.classList.add('hidden'), 300); };
         }
 
-        // Esqueci Senha Colaborador
         document.getElementById('btnForgotCollab').onclick = async () => {
             const email = document.getElementById('emailInput').value;
-            if (!email) { 
-                showCustomAlert("Atenção", "Por favor, preencha o seu e-mail corporativo.", "error"); 
-                return; 
-            }
+            if (!email) { showCustomAlert("Atenção", "Por favor, preencha o seu e-mail corporativo.", "error"); return; }
             try {
                 await sendPasswordResetEmail(auth, email);
-                showCustomAlert("Link Enviado", "Um link de redefinição foi enviado para o seu e-mail. Verifique a caixa de Spam.");
-            } catch (e) { 
-                showCustomAlert("Erro no Envio", "Não foi possível processar a solicitação. Verifique se o e-mail está correto.", "error"); 
-            }
+                showCustomAlert("Link Enviado", "Verifique seu e-mail para redefinir a senha.");
+            } catch (e) { showCustomAlert("Erro no Envio", "Verifique o e-mail digitado.", "error"); }
         };
 
-        // Login Colaborador
+        // --- LÓGICA DE LOGIN ATUALIZADA (Busca em 'users') ---
         document.getElementById('loginCollabForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('btnLogin');
@@ -139,9 +121,11 @@
                 if (!sysSnap.exists()) throw new Error("Usuário sem vínculo empresarial.");
 
                 const companyId = sysSnap.data().companyId;
-                const collabSnap = await getDoc(doc(db, "companies", companyId, "colaboradores", cred.user.uid));
+                
+                // MUDANÇA AQUI: Busca na coleção 'users' em vez de 'colaboradores'
+                const userSnap = await getDoc(doc(db, "companies", companyId, "users", cred.user.uid));
 
-                if (collabSnap.exists()) {
+                if (userSnap.exists()) {
                     window.location.href = "index.html";
                 } else {
                     await signOut(auth);
@@ -154,7 +138,6 @@
             }
         });
 
-        // Olho Mágico
         const toggle = document.getElementById('togglePassword');
         const passInput = document.getElementById('passwordInput');
         toggle.addEventListener('click', () => {
