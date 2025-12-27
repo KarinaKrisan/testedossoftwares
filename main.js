@@ -2,6 +2,7 @@
  * main.js - Versão Final (Enterprise Ready)
  * Sistema: Cronosys SaaS
  * Descrição: Gerenciamento de rotas, autenticação e sanitização de dados.
+ * Correção: Adicionado .trim() para evitar erro de "Usuário não encontrado" por espaços no DB.
  */
 
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
@@ -43,32 +44,38 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         state.currentUser = user;
         try {
-            // 1. REFRESH DE CLAIMS (Crucial para o sistema de Níveis)
+            // 1. REFRESH DE CLAIMS (Crucial para novos usuários como a Pioneira)
             // Força o download do token novo para detectar se o nível mudou via Cloud Function
             const idTokenResult = await user.getIdTokenResult(true);
             const userClaims = idTokenResult.claims;
 
             // 2. IDENTIFICAÇÃO DE EMPRESA (Multi-tenant)
-            // Primeiro checamos se a claim da empresa existe, senão buscamos no sys_users
-            let companyId = userClaims.companyId;
+            let rawCompanyId = userClaims.companyId;
 
-            if (!companyId) {
+            if (!rawCompanyId) {
                 const sysUserSnap = await getDoc(doc(db, "sys_users", user.uid));
                 if (sysUserSnap.exists()) {
-                    companyId = sysUserSnap.data().companyId;
+                    rawCompanyId = sysUserSnap.data().companyId;
                 }
             }
 
-            if (!companyId) {
-                console.error("⛔ Falha Crítica: Usuário sem empresa vinculada.");
+            if (!rawCompanyId) {
+                console.error("⛔ Falha Crítica: Usuário sem empresa vinculada no sys_users.");
                 return performLogout();
             }
 
-            state.companyId = companyId;
+            // CORREÇÃO DEFINITIVA: Remove espaços invisíveis do ID da empresa
+            state.companyId = String(rawCompanyId).trim();
 
             // 3. CARREGAMENTO DE PERFIL (Para UI: Foto, Nome, Cargo)
-            const userSnap = await getDoc(getCompanyDoc("users", user.uid));
-            if (!userSnap.exists()) throw new Error("Perfil não localizado no tenant.");
+            const userDocRef = getCompanyDoc("users", user.uid);
+            const userSnap = await getDoc(userDocRef);
+
+            if (!userSnap.exists()) {
+                // Erro detalhado para Debug
+                console.warn(`Caminho buscado: companies/${state.companyId}/users/${user.uid}`);
+                throw new Error("Usuário não encontrado. Verifique se o perfil existe no caminho acima.");
+            }
 
             state.profile = userSnap.data();
             
@@ -90,11 +97,13 @@ onAuthStateChanged(auth, async (user) => {
 
         } catch (e) {
             console.error("Erro no fluxo de entrada:", e);
-            showNotification("Erro ao carregar perfil: " + e.message, "error");
+            showNotification(e.message, "error");
         }
     } else {
         // Sem usuário logado, volta para o início
-        window.location.href = "start.html";
+        if (!window.location.href.includes("start.html")) {
+            window.location.href = "start.html";
+        }
     }
 });
 
@@ -159,7 +168,6 @@ async function processScheduleData(querySnapshot, detailsMap) {
 }
 
 // --- SANITIZAÇÃO E BLINDAGEM DE OBJETOS ---
-// Previne erros de 'undefined' que travam o salvamento no Firebase
 function buildUserObj(uid, profile, schedule) {
     const safeName = profile.name || profile.nome || "Usuário Sem Nome";
 
