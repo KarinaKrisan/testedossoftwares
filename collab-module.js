@@ -1,9 +1,10 @@
-// collab-module.js - Versão Final SaaS (Opções Corrigidas)
+// collab-module.js - Versão Final SaaS (Horários Corrigidos)
 import { db, state, getCompanyCollection, getCompanyDoc, pad, monthNames, isValidShiftStartDate } from './config.js';
 import { addDoc, serverTimestamp, query, where, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { updatePersonalView, updateWeekendTable, showNotification } from './ui.js';
 
-const shifts = ["07:00 às 19:00", "07:30 às 18:18", "08:00 às 17:48", "08:30 às 18:18", "12:12 às 22:00", "19:00 às 07:00", "22:00 às 07:48"];
+// LISTA DE TURNOS CORRIGIDA
+const shifts = ["07:00 às 19:00", "07:30 às 17:18", "08:00 às 17:48", "08:30 às 18:18", "12:12 às 22:00", "19:00 às 07:00", "22:00 às 07:48"];
 let mini = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: null };
 
 export function initCollabUI() {
