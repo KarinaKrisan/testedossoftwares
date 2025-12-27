@@ -55,19 +55,75 @@
         </div>
     </div>
 
+    <div id="customAlertModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity">
+        <div id="modalContent" class="premium-glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl transform transition-all scale-95 opacity-0 text-center bg-[#1a1a1a]/90">
+            <div id="modalIconBg" class="w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-purple-500/30">
+                <i id="modalIcon" class="fas fa-envelope text-2xl text-purple-400"></i>
+            </div>
+            <h3 id="modalTitle" class="text-lg font-bold text-white mb-2 tracking-tight">Verifique seu E-mail</h3>
+            <p id="modalMessage" class="text-xs text-gray-400 mb-6 leading-relaxed">Enviamos um link de redefinição para você.</p>
+            <button id="modalOkBtn" class="w-full py-3.5 rounded-xl bg-purple-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-purple-500 transition-colors shadow-lg shadow-purple-900/20">
+                Entendido
+            </button>
+        </div>
+    </div>
+
     <script type="module">
         import { db, auth } from './config.js';
         import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
+        // Função para exibir o modal customizado
+        function showCustomAlert(title, message, type = 'success') {
+            const modal = document.getElementById('customAlertModal');
+            const content = document.getElementById('modalContent');
+            const icon = document.getElementById('modalIcon');
+            const iconBg = document.getElementById('modalIconBg');
+            const titleEl = document.getElementById('modalTitle');
+            const msgEl = document.getElementById('modalMessage');
+            const btn = document.getElementById('modalOkBtn');
+
+            // Configuração Visual baseada no tipo
+            if (type === 'error') {
+                icon.className = 'fas fa-exclamation-triangle text-2xl text-red-400';
+                iconBg.className = 'w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/30';
+                btn.className = 'w-full py-3.5 rounded-xl bg-red-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 transition-colors shadow-lg';
+            } else {
+                // Sucesso / Info (Roxo Admin)
+                icon.className = 'fas fa-check text-2xl text-purple-400';
+                iconBg.className = 'w-16 h-16 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-purple-500/30';
+                btn.className = 'w-full py-3.5 rounded-xl bg-purple-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-purple-500 transition-colors shadow-lg';
+            }
+
+            titleEl.innerText = title;
+            msgEl.innerText = message;
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.replace('opacity-0', 'opacity-100');
+                content.classList.replace('scale-95', 'scale-100');
+            }, 10);
+
+            btn.onclick = () => {
+                content.classList.replace('opacity-100', 'opacity-0');
+                content.classList.replace('scale-100', 'scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            };
+        }
+
         // Esqueci Senha
         document.getElementById('btnForgot').onclick = async () => {
             const email = document.getElementById('emailInput').value;
-            if (!email) { alert("Por favor, digite seu e-mail administrativo."); return; }
+            if (!email) { 
+                showCustomAlert("Campo Obrigatório", "Por favor, digite seu e-mail administrativo para recuperar a senha.", "error");
+                return; 
+            }
             try {
                 await sendPasswordResetEmail(auth, email);
-                alert("E-mail de redefinição enviado!");
-            } catch (e) { alert("Erro ao processar solicitação."); }
+                showCustomAlert("E-mail Enviado!", "Verifique sua caixa de entrada (e spam) para redefinir sua senha.");
+            } catch (e) { 
+                showCustomAlert("Erro", "Não foi possível enviar o e-mail. Verifique se o endereço está correto.", "error");
+            }
         };
 
         // Login
