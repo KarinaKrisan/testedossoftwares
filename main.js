@@ -1,4 +1,4 @@
-// main.js - Versão Final (Correção Definitiva do Erro Undefined)
+// main.js - Versão Final (Sanitizada e Preparada para Enterprise)
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
 import * as Admin from './admin-module.js';
 import * as Collab from './collab-module.js';
@@ -12,7 +12,7 @@ window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
 
-// Manipulador de clique na célula
+// Manipulador de clique na célula (Roteamento inteligente)
 window.handleCellClick = (name, dayIndex) => {
     state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex);
 };
@@ -34,7 +34,11 @@ onAuthStateChanged(auth, async (user) => {
     if (user) {
         state.currentUser = user;
         try {
-            // 1. Identificar a Empresa do Usuário
+            // 1. Força atualização do Token (Essencial para Custom Claims)
+            // Isso garante que se o nível mudou, o usuário receba a permissão nova imediatamente
+            await user.getIdTokenResult(true);
+
+            // 2. Identificar a Empresa do Usuário
             const sysUserRef = doc(db, "sys_users", user.uid);
             const sysUserSnap = await getDoc(sysUserRef);
 
@@ -48,7 +52,7 @@ onAuthStateChanged(auth, async (user) => {
             const sysData = sysUserSnap.data();
             state.companyId = sysData.companyId;
 
-            // 2. Carregar Perfil do Usuário
+            // 3. Carregar Perfil Completo do Usuário (Para exibir nome, cargo, etc)
             const userDocRef = getCompanyDoc("users", user.uid);
             const userSnap = await getDoc(userDocRef);
 
@@ -65,6 +69,7 @@ onAuthStateChanged(auth, async (user) => {
             const isManager = myLevel >= 40;
             state.isDualRole = isManager; 
 
+            // Roteamento Inicial
             if (isManager) {
                 setInterfaceMode('admin');
             } else {
@@ -87,11 +92,11 @@ async function loadData() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month + 1).padStart(2, '0')}`;
     
     try {
-        // Busca Escalas
+        // Busca Escalas (Plantonistas)
         const rosterRef = getCompanySubCollection("escalas", docId, "plantonistas");
         const rosterSnap = await getDocs(rosterRef);
 
-        // Busca Usuários
+        // Busca Todos os Usuários (Para cruzar dados)
         const usersRef = getCompanyCollection("users");
         const usersSnap = await getDocs(usersRef);
         
@@ -102,7 +107,7 @@ async function loadData() {
         
         renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
         
-        // Reaplica modo atual
+        // Reaplica modo atual para garantir renderização correta
         setInterfaceMode(state.currentViewMode);
         
         renderWeekendDuty();
@@ -115,7 +120,7 @@ async function loadData() {
     }
 }
 
-// Processa os dados brutos
+// Processa os dados brutos e blinda contra erros
 async function processScheduleData(querySnapshot, detailsMap) {
     const processed = {};
     
@@ -131,7 +136,7 @@ async function processScheduleData(querySnapshot, detailsMap) {
         }
     });
 
-    // 2. Quem existe mas não tem escala
+    // 2. Quem existe mas não tem escala (Preenche lacunas)
     Object.keys(detailsMap).forEach(uid => {
         const u = detailsMap[uid];
         const safeName = u.name || u.nome || "Sem Nome";
@@ -144,13 +149,23 @@ async function processScheduleData(querySnapshot, detailsMap) {
     state.scheduleData = processed;
 }
 
-// --- FUNÇÃO CRÍTICA CORRIGIDA ---
-// Cria o objeto do usuário garantindo que nenhum campo seja 'undefined'
+// --- FUNÇÃO NUCLEAR DE SANITIZAÇÃO ---
+// Cria o objeto do usuário garantindo que NENHUM campo seja 'undefined'
 function buildUserObj(uid, profile, schedule) {
-    // Garante nome
+    // 1. Garante nome seguro
     const safeName = profile.name || profile.nome || "Usuário Sem Nome";
 
-    return {
+    // 2. Limpa a escala: Remove buracos (undefined) dentro do array de dias
+    let safeSchedule = [];
+    if (Array.isArray(schedule)) {
+        safeSchedule = schedule.map(day => {
+            if (day === undefined || day === null) return ""; 
+            return day;
+        });
+    }
+
+    // 3. Monta o objeto base
+    const userObj = {
         uid: uid,
         name: safeName, 
         
@@ -158,20 +173,29 @@ function buildUserObj(uid, profile, schedule) {
         role: profile.role || 'collaborator',
         level: profile.level || 10,
         
-        // Organizacional (Aqui estava o erro: garantimos string vazia se não existir)
+        // Organizacional (Garante string vazia se faltar)
         cargo: profile.cargo || '-',
         setorID: profile.setorID || 'NOC',
-        celulaID: profile.celulaID || '',     // <-- CORREÇÃO
-        department: profile.department || '', // <-- CORREÇÃO
+        celulaID: profile.celulaID || '',     
+        department: profile.department || '', 
         
         // Operacional
         horario: profile.horario || "08:00 às 17:00",
-        schedule: Array.isArray(schedule) ? [...schedule] : [],
+        schedule: safeSchedule,
         email: profile.email || "",
         
-        // Repassa outros campos do perfil por garantia
+        // Copia o resto do perfil original
         ...profile 
     };
+
+    // 4. SANITIZAÇÃO FINAL: Varre o objeto e troca undefined por null
+    Object.keys(userObj).forEach(key => {
+        if (userObj[key] === undefined) {
+            userObj[key] = null; // Firebase aceita null, mas trava com undefined
+        }
+    });
+
+    return userObj;
 }
 
 // --- CONTROLE DE MODO (ADMIN vs COLLAB) ---
@@ -210,10 +234,12 @@ function setInterfaceMode(mode) {
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#2563eb] transition-colors";
         if(headerSuf) { headerSuf.className = "text-blue-500 text-[10px] align-top ml-1"; headerSuf.innerText = "COLLAB"; }
 
+        // Esconde Painéis Admin
         ['screenDaily', 'screenLogs', 'screenApprovals', 'adminTabNav', 'editToolbar', 'adminControls'].forEach(id => {
             document.getElementById(id)?.classList.add('hidden');
         });
 
+        // Mostra Painéis Collab
         document.getElementById('screenEdit').classList.remove('hidden');
         document.getElementById('weekendDutyContainer').classList.remove('hidden');
 
