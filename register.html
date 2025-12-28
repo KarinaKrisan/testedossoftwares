@@ -116,13 +116,13 @@
                 const cred = await createUserWithEmailAndPassword(auth, email, pass);
                 const uid = cred.user.uid;
                 
-                // 2. Gerar CompanyID Sanitizado (Essencial para evitar erro "Usuário não encontrado")
+                // 2. Gerar CompanyID Sanitizado (Limpeza de espaços e acentos)
                 const cleanName = name.toLowerCase()
                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                     .replace(/[^a-z0-9]/g, '');
                 const companyId = `${cleanName}-${Date.now().toString().slice(-4)}`;
 
-                // 3. Criar registro global no sys_users (O mapa de entrada)
+                // 3. Criar registro global no sys_users (Mapa de entrada)
                 await setDoc(doc(db, "sys_users", uid), {
                     email: email,
                     companyId: companyId,
@@ -140,28 +140,52 @@
                 });
 
                 // 5. Criar perfil do usuário como CEO (Nível 100)
-                // Usamos a subcoleção 'users' conforme definido no seu main.js
+                // O GATILHO DA CLOUD FUNCTION
                 await setDoc(doc(db, "companies", companyId, "users", uid), {
                     name: name.split(' ')[0] + " (CEO)",
                     email: email,
-                    level: 100, // Gatilho crucial para a Cloud Function gerar as Claims
+                    level: 100, // IMPORTANTE: Nível 100 aciona a Cloud Function
                     role: "ceo",
                     active: true,
                     createdAt: serverTimestamp()
                 });
 
-                // 6. Aguardar processamento da Cloud Function e atualizar Token
-                // Este passo evita o erro de permissão no primeiro carregamento
-                await new Promise(res => setTimeout(res, 2500)); 
-                await cred.user.getIdTokenResult(true);
+                // 6. POLLING INTELIGENTE (Solução para "Race Condition")
+                // Aguarda o Token receber as permissões antes de redirecionar
+                btn.innerHTML = '<i class="fas fa-cog fa-spin mr-2"></i> Configurando Acesso...';
+                
+                let attempts = 0;
+                const maxAttempts = 10; // Tenta por 15 segundos
+                let accessGranted = false;
 
-                window.location.href = "index.html"; 
+                while (attempts < maxAttempts) {
+                    // Força o download do token novo
+                    const tokenResult = await cred.user.getIdTokenResult(true);
+                    
+                    // Verifica se o 'crachá' chegou (CompanyId E Level 100)
+                    if (tokenResult.claims.companyId === companyId && tokenResult.claims.level === 100) {
+                        accessGranted = true;
+                        break; // Sucesso! Sai do loop
+                    }
+                    
+                    console.log(`⏳ Aguardando Cloud Function... (${attempts + 1}/${maxAttempts})`);
+                    await new Promise(r => setTimeout(r, 1500)); // Espera 1.5s
+                    attempts++;
+                }
+
+                if (accessGranted) {
+                    window.location.href = "index.html"; 
+                } else {
+                    // Caso extremo de demora, libera entrada mas avisa
+                    console.warn("⚠️ Timeout no Polling: Redirecionando mesmo assim.");
+                    window.location.href = "index.html"; 
+                }
 
             } catch (err) {
                 console.error("Erro no Registro:", err);
-                let msg = "Erro ao criar conta. Verifique sua conexão.";
+                let msg = "Erro ao criar conta. Tente novamente.";
                 if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já está em uso.";
-                if (err.message.includes("permission")) msg = "Erro de permissão no banco. Verifique as Rules.";
+                if (err.message.includes("permission")) msg = "Erro de permissão. Aguarde 1 minuto e tente logar.";
                 
                 showError(msg);
                 btn.disabled = false; 
