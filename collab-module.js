@@ -1,27 +1,22 @@
-// collab-module.js - Versão Final SaaS (Horários Corrigidos)
+// collab-module.js - Versão Final
 import { db, state, getCompanyCollection, getCompanyDoc, pad, monthNames, isValidShiftStartDate } from './config.js';
 import { addDoc, serverTimestamp, query, where, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { updatePersonalView, updateWeekendTable, showNotification } from './ui.js';
 
-// LISTA DE TURNOS CORRIGIDA
 const shifts = ["07:00 às 19:00", "07:30 às 17:18", "08:00 às 17:48", "08:30 às 18:18", "12:12 às 22:00", "19:00 às 07:00", "22:00 às 07:48"];
 let mini = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: null };
 
 export function initCollabUI() {
-    // Garante que controles administrativos sumam
     ['adminControls', 'adminTabNav', 'editToolbar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
-    
-    // Mostra controles do colaborador
     ['collabHeader', 'collabControls'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
     
     const name = state.profile?.name || state.profile?.nome;
     if(name) {
         document.getElementById('welcomeUser').textContent = `Olá, ${name.split(' ')[0]}`;
-        
-        // Trava o seletor (caso ele esteja visível por algum bug, embora devêssemos escondê-lo)
         const sel = document.getElementById('employeeSelect');
         if(sel) { sel.innerHTML = `<option>${name}</option>`; sel.value = name; sel.disabled = true; }
         
+        // Renderiza a escala garantida pelo main.js (que já corrigiu os 'F')
         updatePersonalView(name);
         initRequestsTab(); 
         initInboxTab();    
@@ -33,7 +28,7 @@ export function initCollabUI() {
 export function destroyCollabUI() {
     ['collabHeader', 'collabControls'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
     const sel = document.getElementById('employeeSelect');
-    if(sel) sel.disabled = false; // Destrava o seletor ao voltar para Admin
+    if(sel) sel.disabled = false; 
 }
 
 function setupEvents() {
@@ -69,25 +64,16 @@ function openModal() {
     document.getElementById('requestModal').classList.remove('hidden');
     const sel = document.getElementById('reqTargetEmployee');
     sel.innerHTML = '<option value="">Selecione...</option>';
-    // Preenche seletor de colegas (excluindo o próprio usuário)
     Object.keys(state.scheduleData).forEach(n => { 
         if(n !== (state.profile.name||state.profile.nome)) sel.innerHTML += `<option value="${n}">${n}</option>`; 
     });
-    
-    // Preenche seletor de turnos
     document.getElementById('reqNewShift').innerHTML = shifts.map(s=>`<option value="${s}">${s}</option>`).join('');
-    
-    handleType(); // Ajusta a visibilidade inicial dos campos
+    handleType(); 
 }
 
 function handleType() {
     const t = document.getElementById('reqType').value;
-    
-    // Lógica para esconder/mostrar campos
-    // Se for 'novo_turno', mostra o seletor de horário e esconde o colega
-    // Se for 'troca_dia' ou 'troca_folga', mostra o colega e esconde o horário
     const isShiftChange = (t === 'novo_turno');
-
     document.getElementById('divReqTarget').classList.toggle('hidden', isShiftChange);
     document.getElementById('divReqShift').classList.toggle('hidden', !isShiftChange);
 }
@@ -100,44 +86,24 @@ async function sendReq() {
 
     try {
         if(!date) throw new Error("Data inválida. Use o calendário.");
-        
-        // --- CASO 1: NOVO TURNO (Vai para o Líder) ---
         if (type === 'novo_turno') {
-            // Regra de negócio (opcional): if(!isValidShiftStartDate(date)) throw new Error("Apenas após dia 25.");
             shift = document.getElementById('reqNewShift').value;
-            target = 'LÍDER'; 
-            tUid = 'ADMIN'; 
-        } 
-        // --- CASO 2: TROCA DE DIA/FOLGA (Vai para o Colega) ---
-        else {
+            target = 'LÍDER'; tUid = 'ADMIN'; 
+        } else {
             target = document.getElementById('reqTargetEmployee').value;
             if(!target) throw new Error("Selecione um colega para trocar.");
-            
-            // Busca UID do alvo
             const targetData = Object.values(state.scheduleData).find(u=>u.name===target);
             if(targetData) tUid = targetData.uid;
             else throw new Error("Colega não encontrado na base.");
         }
-
         const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
-        
         await addDoc(getCompanyCollection("solicitacoes"), {
-            monthId: docId, 
-            requester: (state.profile.name||state.profile.nome), 
-            requesterUid: state.currentUser.uid,
-            dayIndex: parseInt(date.split('-')[2])-1, 
-            type, 
-            target, 
-            targetUid: tUid, 
-            desiredShift: shift, 
-            reason,
-            // Novo turno vai direto pro líder; Trocas precisam de aceite do colega primeiro
-            status: type === 'novo_turno' ? 'pending_leader' : 'pending_peer', 
-            createdAt: serverTimestamp()
+            monthId: docId, requester: (state.profile.name||state.profile.nome), requesterUid: state.currentUser.uid,
+            dayIndex: parseInt(date.split('-')[2])-1, type, target, targetUid: tUid, desiredShift: shift, reason,
+            status: type === 'novo_turno' ? 'pending_leader' : 'pending_peer', createdAt: serverTimestamp()
         });
-        
         document.getElementById('requestModal').classList.add('hidden');
-        showNotification("Solicitação enviada com sucesso!");
+        showNotification("Solicitação enviada!");
     } catch(e) { showNotification(e.message, "error"); }
 }
 
@@ -148,13 +114,7 @@ function initRequestsTab() {
         const list = document.getElementById('sentRequestsList');
         if(list) list.innerHTML = snap.docs.map(d => { 
             const r = d.data(); 
-            // Formata o tipo para ficar bonito na lista
-            let typeLabel = "Troca";
-            if(r.type === 'troca_dia') typeLabel = "Troca de Dia";
-            if(r.type === 'troca_folga') typeLabel = "Troca de Folga";
-            if(r.type === 'novo_turno') typeLabel = "Novo Turno";
-
-            return `<div class="apple-glass p-2 mb-2 text-[9px] relative"><button onclick="window.deleteRequest('${d.id}')" class="absolute top-2 right-2 text-red-400"><i class="fas fa-trash"></i></button><strong>${typeLabel} • DIA ${r.dayIndex+1}</strong><br><span class="text-gray-400">${r.status}</span></div>` 
+            return `<div class="apple-glass p-2 mb-2 text-[9px] relative"><button onclick="window.deleteRequest('${d.id}')" class="absolute top-2 right-2 text-red-400"><i class="fas fa-trash"></i></button><strong>${r.type} • DIA ${r.dayIndex+1}</strong><br><span class="text-gray-400">${r.status}</span></div>` 
         }).join('') || '<p class="text-center text-gray-500 text-[8px]">Vazio</p>';
     });
 }
