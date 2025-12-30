@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <link rel="stylesheet" href="styless.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body class="antialiased selection:bg-blue-500/30 selection:text-white pb-20 md:pb-10">
     <div id="toastContainer" class="fixed top-4 right-4 left-4 md:left-auto md:top-8 md:right-8 z-[200] space-y-3 pointer-events-none"></div>
@@ -57,50 +56,11 @@
         </div>
 
         <section id="screenDaily" class="hidden animate-fade-in">
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
-                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
-                        <span class="text-[9px] font-bold uppercase text-emerald-400 tracking-widest flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Turno</span>
-                        <span id="countAtivo" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
-                    </div>
-                    <div id="listAtivo" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
-                </div>
-                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
-                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
-                        <span class="text-[9px] font-bold uppercase text-purple-400 tracking-widest flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-purple-500"></div> Off</span>
-                        <span id="countEncerrado" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
-                    </div>
-                    <div id="listEncerrado" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
-                </div>
-                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
-                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
-                        <span class="text-[9px] font-bold uppercase text-yellow-400 tracking-widest flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-yellow-500"></div> Folga</span>
-                        <span id="countFolga" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
-                    </div>
-                    <div id="listFolga" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
-                </div>
-                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
-                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
-                        <span class="text-[9px] font-bold uppercase text-red-400 tracking-widest flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-red-500"></div> Férias</span>
-                        <span id="countFerias" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
-                    </div>
-                    <div id="listFerias" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
-                </div>
-                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
-                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
-                        <span class="text-[9px] font-bold uppercase text-orange-400 tracking-widest flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-orange-500"></div> Afast.</span>
-                        <span id="countAfastado" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
-                    </div>
-                    <div id="listAfastado" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
-                </div>
-                <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl">
-                    <div class="p-2 border-b border-white/5 flex justify-between items-center shrink-0 bg-white/5">
-                        <span class="text-[9px] font-bold uppercase text-pink-400 tracking-widest flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-pink-500"></div> Licença</span>
-                        <span id="countLicenca" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span>
-                    </div>
-                    <div id="listLicenca" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div>
-                </div>
-            </div>
+             <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                 <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl"><div class="p-2 border-b border-white/5 flex justify-between items-center bg-white/5"><span class="text-[9px] font-bold uppercase text-emerald-400 flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Turno</span><span id="countAtivo" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span></div><div id="listAtivo" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div></div>
+                 <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl"><div class="p-2 border-b border-white/5 flex justify-between items-center bg-white/5"><span class="text-[9px] font-bold uppercase text-purple-400 flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-purple-500"></div> Off</span><span id="countEncerrado" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span></div><div id="listEncerrado" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div></div>
+                 <div class="premium-glass p-0.5 flex flex-col h-[220px] border border-white/5 rounded-xl"><div class="p-2 border-b border-white/5 flex justify-between items-center bg-white/5"><span class="text-[9px] font-bold uppercase text-yellow-400 flex items-center gap-1"><div class="w-1.5 h-1.5 rounded-full bg-yellow-500"></div> Folga</span><span id="countFolga" class="text-[9px] font-mono text-white/70 bg-black/20 px-1.5 rounded">0</span></div><div id="listFolga" class="p-1 space-y-1 overflow-y-auto custom-scrollbar flex-1"></div></div>
+             </div>
         </section>
 
         <section id="screenEdit" class="hidden animate-fade-in">
@@ -112,20 +72,23 @@
                         <label class="text-[9px] font-bold text-gray-400 uppercase mb-2 block tracking-widest">Colaborador</label>
                         <select id="employeeSelect" class="w-full bg-black/30 border border-white/10 text-white rounded-lg p-2.5 text-xs outline-none mb-3" onchange="window.updatePersonalView(this.value)"></select>
                         <button id="btnSaveConfirm" class="w-full bg-white text-black font-bold py-2.5 rounded-lg text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95">Salvar Escala</button>
+                        
+                        <button onclick="window.openPromoteModal()" class="w-full mt-2 bg-purple-600/20 border border-purple-500/50 text-purple-400 font-bold py-2.5 rounded-lg text-[10px] uppercase tracking-widest hover:bg-purple-600 hover:text-white transition-all">
+                            <i class="fas fa-user-tag mr-2"></i> Gerir Cargos
+                        </button>
+
+                        <div id="dynamicMenuContainer" class="flex flex-col gap-1 mt-4 border-t border-white/10 pt-4"></div>
                     </div>
 
                     <div id="collabControls" class="hidden premium-glass p-3 md:p-4 shrink-0 border-l-4 border-blue-500">
                         <h3 class="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-3">Central de Solicitações</h3>
-                        
                         <button id="btnNewRequestDynamic" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg active:scale-95 transition-all mb-4">
                             <i class="fas fa-plus-circle mr-1"></i> Nova Solicitação
                         </button>
-
                         <div id="inboxContainer" class="hidden mb-3">
                             <h4 class="text-[8px] font-bold text-white/50 uppercase tracking-widest mb-1.5">Recebidos</h4>
                             <div id="inboxRequestsList" class="space-y-1"></div>
                         </div>
-
                         <div>
                             <h4 class="text-[8px] font-bold text-white/50 uppercase tracking-widest mb-1.5">Enviados</h4>
                             <div id="sentRequestsList" class="space-y-1 max-h-[150px] overflow-y-auto custom-scrollbar"></div>
@@ -139,15 +102,6 @@
                 <main class="w-full lg:w-2/3">
                     <div id="calendarContainer" class="hidden">
                         <div id="calendarGrid" class="premium-glass calendar-grid-container"></div>
-                        <div class="flex flex-wrap justify-center gap-2 mt-4 px-2">
-                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#10b981]"></div>T</span>
-                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#fbbf24]"></div>F</span>
-                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#40E0D0]"></div>Sáb</span>
-                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#4169E1]"></div>Dom</span>
-                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-[#ef4444]"></div>Fér</span>
-                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-orange-500"></div>Af</span>
-                            <span class="flex items-center gap-1 text-[8px] text-gray-400 uppercase font-bold"><div class="w-1.5 h-1.5 rounded-full bg-pink-500"></div>LM</span>
-                        </div>
                     </div>
                 </main>
             </div>
@@ -157,79 +111,33 @@
         <section id="screenApprovals" class="hidden animate-fade-in max-w-2xl mx-auto"><div id="adminRequestsListSide" class="space-y-3"></div></section>
     </div>
 
-    <div id="requestModal" class="hidden fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-        <div class="premium-glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl animate-bounce-in bg-[#0f0f0f]">
-            <h3 class="text-sm font-bold text-white uppercase tracking-widest mb-4 flex justify-between items-center">
-                Nova Solicitação
-                <button onclick="document.getElementById('requestModal').classList.add('hidden')" class="text-gray-500 hover:text-white"><i class="fas fa-times"></i></button>
-            </h3>
-            
-            <div class="space-y-3">
+    <div id="promoteModal" class="hidden fixed inset-0 z-[160] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md transition-opacity">
+        <div class="premium-glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-[0_0_50px_rgba(147,51,234,0.1)]">
+            <div class="flex justify-between items-start mb-6">
+                <div><h3 class="text-sm font-bold text-white uppercase tracking-widest">Gestão de Equipe</h3><p class="text-[10px] text-gray-400 mt-1">Alterar nível de acesso</p></div>
+                <button onclick="document.getElementById('promoteModal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white"><i class="fas fa-times text-xs"></i></button>
+            </div>
+            <div class="space-y-4">
                 <div>
-                    <label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Tipo</label>
-                    <select id="reqType" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs outline-none focus:border-blue-500 transition-colors appearance-none">
-                        <option value="troca_dia" class="bg-[#1a1a1a] text-white py-1">Troca de Dias trabalhados</option>
-                        <option value="troca_folga" class="bg-[#1a1a1a] text-white py-1">Troca de Folga</option>
-                        <option value="novo_turno" class="bg-[#1a1a1a] text-white py-1">Novo Turno</option>
-                    </select>
+                    <label class="text-[9px] font-bold text-gray-500 uppercase tracking-widest ml-1">Colaborador</label>
+                    <div class="relative"><select id="promoteTargetUser" class="w-full bg-black/40 border border-white/10 text-white rounded-xl p-3 text-xs outline-none focus:border-purple-500 appearance-none"></select><div class="absolute right-3 top-3.5 text-gray-500 pointer-events-none"><i class="fas fa-chevron-down text-xs"></i></div></div>
                 </div>
-
                 <div>
-                    <label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Data</label>
-                    <input type="hidden" id="reqDateManual">
-                    <button id="datePickerTrigger" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs flex justify-between items-center hover:bg-white/5 transition-colors">
-                        <span id="datePickerText">Selecionar Data</span>
-                        <i class="fas fa-calendar-alt text-blue-400"></i>
-                    </button>
-                    <div id="miniCalendarDropdown" class="hidden mt-1 p-2 bg-[#1a1a1a] border border-white/10 rounded-lg absolute z-50 shadow-xl w-[200px]">
-                        <div class="flex justify-between items-center mb-2">
-                            <button id="miniPrev" class="text-gray-400 hover:text-white"><i class="fas fa-chevron-left text-xs"></i></button>
-                            <span id="miniMonthLabel" class="text-[10px] text-white font-bold uppercase"></span>
-                            <button id="miniNext" class="text-gray-400 hover:text-white"><i class="fas fa-chevron-right text-xs"></i></button>
-                        </div>
-                        <div id="miniCalendarGrid" class="grid grid-cols-7 gap-1 text-center text-[9px] text-gray-300"></div>
-                    </div>
+                    <label class="text-[9px] font-bold text-gray-500 uppercase tracking-widest ml-1">Novo Cargo</label>
+                    <div class="grid grid-cols-1 gap-2" id="roleOptionsContainer"></div>
+                    <input type="hidden" id="selectedRoleKey">
                 </div>
-
-                <div id="divReqTarget">
-                    <label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Trocar com</label>
-                    <select id="reqTargetEmployee" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs outline-none appearance-none"></select>
-                </div>
-
-                <div id="divReqShift" class="hidden">
-                    <label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Novo Horário</label>
-                    <select id="reqNewShift" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs outline-none appearance-none"></select>
-                </div>
-
-                <div>
-                    <label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Motivo</label>
-                    <textarea id="reqReason" rows="2" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs outline-none placeholder-gray-600" placeholder="Opcional"></textarea>
-                </div>
-
-                <button id="btnSendRequest" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded text-xs font-bold uppercase tracking-widest shadow-lg mt-2 active:scale-95 transition-all">Enviar</button>
+                <button onclick="window.confirmPromotion()" class="w-full py-3.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold rounded-xl shadow-lg uppercase tracking-widest text-[10px]"><i class="fas fa-save mr-2"></i> Salvar Alterações</button>
             </div>
         </div>
     </div>
 
-    <div id="customConfirmModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity">
-        <div id="modalContent" class="premium-glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl transform transition-all scale-95 opacity-0 text-center">
-            <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fas fa-exclamation-triangle text-red-500"></i></div>
-            <h3 class="text-lg font-bold text-white mb-2 tracking-tight">Confirmar Ação?</h3>
-            <p id="modalMessage" class="text-xs text-gray-400 mb-6 leading-relaxed"></p>
-            <div class="flex gap-3">
-                <button id="modalCancel" class="flex-1 py-3 rounded-xl bg-white/5 text-white text-[10px] font-bold uppercase tracking-widest">Cancelar</button>
-                <button id="modalConfirm" class="flex-1 py-3 rounded-xl bg-red-600 text-white text-[10px] font-bold uppercase tracking-widest">Confirmar</button>
-            </div>
-        </div>
-    </div>
+    <div id="requestModal" class="hidden fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"><div class="premium-glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl animate-bounce-in bg-[#0f0f0f]"><h3 class="text-sm font-bold text-white uppercase tracking-widest mb-4 flex justify-between items-center">Nova Solicitação<button onclick="document.getElementById('requestModal').classList.add('hidden')" class="text-gray-500 hover:text-white"><i class="fas fa-times"></i></button></h3><div class="space-y-3"><div><label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Tipo</label><select id="reqType" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs outline-none"><option value="troca_dia">Troca de Dias</option><option value="troca_folga">Troca de Folga</option><option value="novo_turno">Novo Turno</option></select></div><div><label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Data</label><input type="hidden" id="reqDateManual"><button id="datePickerTrigger" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs flex justify-between items-center"><span id="datePickerText">Selecionar</span><i class="fas fa-calendar-alt text-blue-400"></i></button><div id="miniCalendarDropdown" class="hidden mt-1 p-2 bg-[#1a1a1a] border border-white/10 rounded-lg absolute z-50 shadow-xl w-[200px]"><div class="flex justify-between items-center mb-2"><button id="miniPrev" class="text-gray-400 hover:text-white"><i class="fas fa-chevron-left text-xs"></i></button><span id="miniMonthLabel" class="text-[10px] text-white font-bold uppercase"></span><button id="miniNext" class="text-gray-400 hover:text-white"><i class="fas fa-chevron-right text-xs"></i></button></div><div id="miniCalendarGrid" class="grid grid-cols-7 gap-1 text-center text-[9px] text-gray-300"></div></div></div><div id="divReqTarget"><label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Trocar com</label><select id="reqTargetEmployee" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs outline-none"></select></div><div id="divReqShift" class="hidden"><label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Novo Horário</label><select id="reqNewShift" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs outline-none"></select></div><div><label class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Motivo</label><textarea id="reqReason" rows="2" class="w-full bg-[#1a1a1a] border border-white/10 text-white rounded p-2 text-xs outline-none"></textarea></div><button id="btnSendRequest" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2.5 rounded text-xs font-bold uppercase tracking-widest shadow-lg mt-2">Enviar</button></div></div></div>
 
-    <div id="successAnimModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-        <div class="text-center animate-bounce-in">
-            <div class="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg"><i class="fas fa-check text-3xl text-white"></i></div>
-            <h3 class="text-white font-bold tracking-widest uppercase text-sm">Ação Concluída</h3>
-        </div>
-    </div>
+    <div id="customConfirmModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity"><div id="modalContent" class="premium-glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl transform transition-all scale-95 opacity-0 text-center"><div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4"><i class="fas fa-exclamation-triangle text-red-500"></i></div><h3 class="text-lg font-bold text-white mb-2 tracking-tight">Confirmar?</h3><p id="modalMessage" class="text-xs text-gray-400 mb-6 leading-relaxed"></p><div class="flex gap-3"><button id="modalCancel" class="flex-1 py-3 rounded-xl bg-white/5 text-white text-[10px] font-bold uppercase tracking-widest">Cancelar</button><button id="modalConfirm" class="flex-1 py-3 rounded-xl bg-red-600 text-white text-[10px] font-bold uppercase tracking-widest">Confirmar</button></div></div></div>
+
+    <div id="successAnimModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm"><div class="text-center animate-bounce-in"><div class="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg"><i class="fas fa-check text-3xl text-white"></i></div><h3 class="text-white font-bold tracking-widest uppercase text-sm">Concluído</h3></div></div>
 
     <script type="module" src="main.js"></script>
 </body>
-</html>
+</html> 
