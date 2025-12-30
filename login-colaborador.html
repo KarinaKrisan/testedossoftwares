@@ -108,33 +108,53 @@
             } catch (e) { showCustomAlert("Erro no Envio", "Verifique o e-mail digitado.", "error"); }
         };
 
-        // --- LÓGICA DE LOGIN ATUALIZADA (Busca em 'users') ---
+        // --- LÓGICA DE LOGIN CORRIGIDA ---
         document.getElementById('loginCollabForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('btnLogin');
-            btn.innerHTML = 'Autenticando...'; btn.disabled = true;
+            const errDiv = document.getElementById('loginError');
+            
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Autenticando...'; 
+            btn.disabled = true;
+            errDiv.classList.add('hidden');
 
             try {
+                // 1. Autentica no Firebase Auth
                 const cred = await signInWithEmailAndPassword(auth, document.getElementById('emailInput').value, document.getElementById('passwordInput').value);
+                
+                // 2. Busca vínculo empresarial (sys_users)
                 const sysSnap = await getDoc(doc(db, "sys_users", cred.user.uid));
-
-                if (!sysSnap.exists()) throw new Error("Usuário sem vínculo empresarial.");
+                if (!sysSnap.exists()) {
+                    await signOut(auth);
+                    throw new Error("Usuário sem vínculo empresarial.");
+                }
 
                 const companyId = sysSnap.data().companyId;
                 
-                // MUDANÇA AQUI: Busca na coleção 'users' em vez de 'colaboradores'
+                // 3. Validação do Perfil: Busca na coleção 'users' (PADRÃO UNIFICADO)
+                // Se o signup salvou em 'users', aqui precisa ler de 'users'
                 const userSnap = await getDoc(doc(db, "companies", companyId, "users", cred.user.uid));
 
                 if (userSnap.exists()) {
                     window.location.href = "index.html";
                 } else {
+                    // Se não achou em users, verifica se existe em 'colaboradores' (Legado) para dar um erro mais claro
+                    // ou simplesmente nega o acesso.
                     await signOut(auth);
-                    throw new Error("Perfil de colaborador não encontrado.");
+                    throw new Error("Perfil de usuário não encontrado na base de dados da empresa.");
                 }
+
             } catch (error) {
-                btn.innerHTML = 'Entrar'; btn.disabled = false;
-                const errDiv = document.getElementById('loginError');
-                errDiv.innerText = error.message; errDiv.classList.remove('hidden');
+                console.error(error);
+                btn.innerHTML = 'Entrar'; 
+                btn.disabled = false;
+                
+                let msg = error.message;
+                if(error.code === 'auth/invalid-credential') msg = "E-mail ou senha incorretos.";
+                if(error.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
+                
+                errDiv.innerText = msg; 
+                errDiv.classList.remove('hidden');
             }
         });
 
