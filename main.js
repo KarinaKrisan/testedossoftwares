@@ -1,8 +1,6 @@
 /**
- * main.js - Versão Final (Enterprise Ready)
+ * main.js - Versão Final (Padronizado para coleção 'users')
  * Sistema: Cronosys SaaS
- * Descrição: Gerenciamento de rotas, autenticação e sanitização de dados.
- * Correção: Adicionado .trim() para evitar erro de "Usuário não encontrado" por espaços no DB.
  */
 
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
@@ -12,13 +10,13 @@ import { updatePersonalView, switchSubTab, renderMonthSelector, renderWeekendDut
 import { doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-// --- EXPORTAÇÕES GLOBAIS (Acessíveis pelo HTML) ---
+// --- EXPORTAÇÕES GLOBAIS ---
 window.switchSubTab = switchSubTab;
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
 
-// Manipulador de clique na célula (Roteamento inteligente por nível de acesso)
+// Manipulador de clique na célula
 window.handleCellClick = (name, dayIndex) => {
     state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex);
 };
@@ -33,25 +31,22 @@ const performLogout = async () => {
     } 
 };
 
-// Bind de botões de logout
 ['btnLogout', 'btnLogoutMobile'].forEach(id => {
     const btn = document.getElementById(id);
     if(btn) btn.onclick = performLogout;
 });
 
-// --- NÚCLEO DE AUTENTICAÇÃO E HIERARQUIA ---
+// --- NÚCLEO DE AUTENTICAÇÃO ---
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         state.currentUser = user;
         try {
-            // 1. REFRESH DE CLAIMS (Crucial para novos usuários como a Pioneira)
-            // Força o download do token novo para detectar se o nível mudou via Cloud Function
+            // 1. Refresh de Claims e ID da Empresa
             const idTokenResult = await user.getIdTokenResult(true);
             const userClaims = idTokenResult.claims;
-
-            // 2. IDENTIFICAÇÃO DE EMPRESA (Multi-tenant)
             let rawCompanyId = userClaims.companyId;
 
+            // Fallback: busca no sys_users se o claim não estiver pronto
             if (!rawCompanyId) {
                 const sysUserSnap = await getDoc(doc(db, "sys_users", user.uid));
                 if (sysUserSnap.exists()) {
@@ -60,33 +55,30 @@ onAuthStateChanged(auth, async (user) => {
             }
 
             if (!rawCompanyId) {
-                console.error("⛔ Falha Crítica: Usuário sem empresa vinculada no sys_users.");
+                console.error("Erro Crítico: Usuário sem empresa vinculada.");
                 return performLogout();
             }
 
-            // CORREÇÃO DEFINITIVA: Remove espaços invisíveis do ID da empresa
             state.companyId = String(rawCompanyId).trim();
 
-            // 3. CARREGAMENTO DE PERFIL (Para UI: Foto, Nome, Cargo)
+            // 2. Carregamento de Perfil (Padronizado para 'users')
+            // getCompanyDoc("users", uid) resolve para -> companies/{id}/users/{uid}
             const userDocRef = getCompanyDoc("users", user.uid);
             const userSnap = await getDoc(userDocRef);
 
             if (!userSnap.exists()) {
-                // Erro detalhado para Debug
-                console.warn(`Caminho buscado: companies/${state.companyId}/users/${user.uid}`);
-                throw new Error("Usuário não encontrado. Verifique se o perfil existe no caminho acima.");
+                console.warn(`Perfil não encontrado em: companies/${state.companyId}/users/${user.uid}`);
+                // Não faz logout imediato para permitir debug, mas mostra erro
+                showNotification("Perfil de usuário não encontrado.", "error");
+                throw new Error("Perfil de usuário incompleto.");
             }
 
             state.profile = userSnap.data();
             
-            // --- LÓGICA DE PODER (HIERARQUIA) ---
-            // O nível vem das Claims (Seguro) ou do Perfil (Fallback)
+            // 3. Definição de Nível (Admin vs Collab)
             const myLevel = userClaims.level || state.profile.level || 10;
-            
-            // Gerentes, Diretores e CEOs (Nível >= 40) possuem modo Admin
             state.isDualRole = myLevel >= 40; 
 
-            // Roteamento Automático Inicial
             if (state.isDualRole) {
                 setInterfaceMode('admin');
             } else {
@@ -100,7 +92,6 @@ onAuthStateChanged(auth, async (user) => {
             showNotification(e.message, "error");
         }
     } else {
-        // Sem usuário logado, volta para o início
         if (!window.location.href.includes("start.html")) {
             window.location.href = "start.html";
         }
@@ -112,10 +103,10 @@ async function loadData() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month + 1).padStart(2, '0')}`;
     
     try {
-        // Busca paralela: Escalas do mês + Lista de usuários ativos
+        // Busca escalas e TODOS os usuários da empresa para montar a lista
         const [rosterSnap, usersSnap] = await Promise.all([
             getDocs(getCompanySubCollection("escalas", docId, "plantonistas")),
-            getDocs(getCompanyCollection("users"))
+            getDocs(getCompanyCollection("users")) // Busca na coleção 'users' unificada
         ]);
 
         const detailsMap = {};
@@ -123,26 +114,25 @@ async function loadData() {
 
         await processScheduleData(rosterSnap, detailsMap);
         
-        // Atualiza seletores de data na UI
         renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
         
-        // Renderiza a visualização correta
+        // Renderiza interface
         setInterfaceMode(state.currentViewMode);
         renderWeekendDuty();
 
     } catch (error) { 
         console.error("Erro no carregamento de dados:", error); 
-        showNotification("Erro ao sincronizar dados com o servidor.", "error");
+        showNotification("Erro de conexão.", "error");
     } finally { 
         hideLoader(); 
     }
 }
 
-// Cruzamento de dados entre Escalas e Perfis
+// Cruzamento de dados: Escala vs Perfil
 async function processScheduleData(querySnapshot, detailsMap) {
     const processed = {};
     
-    // 1. Processa quem já tem escala gravada no Firestore
+    // 1. Quem tem escala
     querySnapshot.forEach((doc) => {
         const uid = doc.id;
         const scaleData = doc.data();
@@ -154,11 +144,12 @@ async function processScheduleData(querySnapshot, detailsMap) {
         }
     });
 
-    // 2. Preenche com usuários que não possuem escala ainda (Garante que apareçam na lista)
+    // 2. Quem não tem escala ainda (aparece vazio)
     Object.keys(detailsMap).forEach(uid => {
         const u = detailsMap[uid];
         const safeName = u.name || u.nome || "Sem Nome";
 
+        // Adiciona se estiver ativo e ainda não foi processado
         if (u.active !== false && !Object.values(processed).some(p => p.uid === uid)) {
              processed[safeName] = buildUserObj(uid, u, []);
         }
@@ -167,11 +158,10 @@ async function processScheduleData(querySnapshot, detailsMap) {
     state.scheduleData = processed;
 }
 
-// --- SANITIZAÇÃO E BLINDAGEM DE OBJETOS ---
+// Sanitização de Objeto de Usuário
 function buildUserObj(uid, profile, schedule) {
     const safeName = profile.name || profile.nome || "Usuário Sem Nome";
 
-    // Limpeza de array de escala (evita buracos de dados)
     let safeSchedule = Array.isArray(schedule) 
         ? schedule.map(day => (day === undefined || day === null) ? "" : day)
         : [];
@@ -183,15 +173,13 @@ function buildUserObj(uid, profile, schedule) {
         level: profile.level || 10,
         cargo: profile.cargo || '-',
         setorID: profile.setorID || 'NOC',
-        celulaID: profile.celulaID || '',     
-        department: profile.department || '', 
+        email: profile.email || "",
         horario: profile.horario || "08:00 às 17:00",
         schedule: safeSchedule,
-        email: profile.email || "",
         ...profile 
     };
 
-    // Filtro final: troca qualquer undefined por null (Aceito pelo Firebase)
+    // Remove undefined
     Object.keys(userObj).forEach(key => {
         if (userObj[key] === undefined) userObj[key] = null;
     });
@@ -199,14 +187,13 @@ function buildUserObj(uid, profile, schedule) {
     return userObj;
 }
 
-// --- CONTROLE DE INTERFACE (ADMIN VS COLLAB) ---
+// --- CONTROLE DE INTERFACE ---
 function setInterfaceMode(mode) {
     state.currentViewMode = mode;
     const btnDual = document.getElementById('btnDualMode');
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
 
-    // Ativa botão de troca apenas para Gestores/CEO
     if (state.isDualRole && btnDual) {
         btnDual.classList.replace('hidden', 'flex');
         btnDual.onclick = () => setInterfaceMode(state.currentViewMode === 'admin' ? 'collab' : 'admin');
@@ -229,12 +216,10 @@ function setInterfaceMode(mode) {
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#2563eb]";
         if(headerSuf) { headerSuf.className = "text-blue-500 text-[10px] align-top ml-1"; headerSuf.innerText = "COLLAB"; }
 
-        // Esconde componentes administrativos
         ['screenDaily', 'screenLogs', 'screenApprovals', 'adminTabNav', 'editToolbar', 'adminControls'].forEach(id => {
             document.getElementById(id)?.classList.add('hidden');
         });
 
-        // Ativa componentes do colaborador
         document.getElementById('screenEdit')?.classList.remove('hidden');
         document.getElementById('weekendDutyContainer')?.classList.remove('hidden');
 
@@ -243,11 +228,9 @@ function setInterfaceMode(mode) {
     }
 }
 
-// Navegação de Meses
 async function handleMonthChange(direction) {
     const cur = availableMonths.findIndex(m => m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month);
     const next = cur + direction;
-    
     if (next >= 0 && next < availableMonths.length) {
         state.selectedMonthObj = availableMonths[next];
         await loadData();
