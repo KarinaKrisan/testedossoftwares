@@ -115,7 +115,7 @@
             const btn = document.getElementById('btnLogin');
             const errDiv = document.getElementById('loginError');
             
-            const email = document.getElementById('emailInput').value.trim(); // Sanitização
+            const email = document.getElementById('emailInput').value.trim();
             const pass = document.getElementById('passwordInput').value;
 
             btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Autenticando...';
@@ -138,10 +138,10 @@
                     throw new Error("Sua conta não possui vínculo com nenhuma empresa cadastrada.");
                 }
 
-                const companyId = String(sysSnap.data().companyId).trim(); // Sanitização
+                const companyId = String(sysSnap.data().companyId).trim();
 
                 // 4. Validação de Nível (Hierarchy Check)
-                // Busca o perfil na coleção 'users' unificada
+                // --- CONFIRMADO: BUSCA EM 'USERS' ---
                 const userSnap = await getDoc(doc(db, "companies", companyId, "users", cred.user.uid));
 
                 if (userSnap.exists()) {
