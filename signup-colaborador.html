@@ -7,6 +7,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
     <link rel="stylesheet" href="styless.css">
+    
+    <style>
+        @keyframes bounceIn {
+            0% { opacity: 0; transform: scale(0.3); }
+            50% { opacity: 1; transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .animate-bounce-in { animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards; }
+    </style>
 </head>
 <body class="h-screen flex items-center justify-center bg-black p-6 relative overflow-hidden">
     
@@ -73,11 +83,22 @@
         </div>
     </div>
 
+    <div id="successAnimModal" class="hidden fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity">
+        <div class="text-center animate-bounce-in">
+            <div class="w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_rgba(16,185,129,0.5)] border-4 border-black">
+                <i class="fas fa-check text-4xl text-white"></i>
+            </div>
+            <h3 class="text-xl font-bold text-white tracking-tight uppercase mb-2">Sucesso!</h3>
+            <p class="text-xs text-gray-400 uppercase tracking-widest">Conta criada com sucesso</p>
+        </div>
+    </div>
+
     <script type="module">
         import { db, auth } from './config.js';
         import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
+        // UI Helpers
         const toggle = document.getElementById('togglePassword');
         const passInput = document.getElementById('userPass');
         toggle.onclick = () => {
@@ -86,11 +107,17 @@
             toggle.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
         };
 
-        // --- VALIDAÇÃO DO CONVITE (SAAS FIX) ---
+        // 2. FUNÇÃO PARA EXIBIR O MODAL
+        function showSuccessAnim() {
+            const modal = document.getElementById('successAnimModal');
+            modal.classList.remove('hidden');
+        }
+
+        // --- VALIDAÇÃO DO CONVITE ---
         async function checkInvite() {
             const urlParams = new URLSearchParams(window.location.search);
             const inviteCode = urlParams.get('convite');
-            const companyId = urlParams.get('company'); // Agora lemos o ID da empresa da URL
+            const companyId = urlParams.get('company');
 
             if (!inviteCode || !companyId) {
                 showInvalid("Link incompleto (falta código ou ID da empresa).");
@@ -98,23 +125,18 @@
             }
 
             try {
-                // CORREÇÃO: Busca dentro da subcoleção da empresa
                 const inviteRef = doc(db, "companies", companyId, "convites", inviteCode.trim());
                 const inviteSnap = await getDoc(inviteRef);
 
                 if (inviteSnap.exists() && inviteSnap.data().active === true) {
                     const data = inviteSnap.data();
-                    
-                    // Preenche campos ocultos e UI
                     document.getElementById('realCompanyId').value = companyId;
                     document.getElementById('validatedInviteCode').value = inviteCode.trim();
                     
-                    // Tenta pegar o nome da empresa do convite ou busca no doc da empresa
                     let compName = "Sua Empresa";
                     if(data.companyName) {
                         compName = data.companyName;
                     } else {
-                        // Fallback: busca nome da empresa se não estiver no convite
                         const compSnap = await getDoc(doc(db, "companies", companyId));
                         if(compSnap.exists()) compName = compSnap.data().name || compSnap.data().nome;
                     }
@@ -128,8 +150,6 @@
                 }
             } catch (e) {
                 console.error("Erro na validação:", e);
-                // Se der erro de permissão, é porque o user não existe no auth ainda E a regra bloqueou leitura pública, 
-                // mas a regra "read" de convites que criamos permite leitura se souber o ID.
                 showInvalid("Erro de conexão. Código: " + e.code);
             }
         }
@@ -170,13 +190,12 @@
                     createdAt: serverTimestamp() 
                 });
                 
-                // 3. Perfil na Empresa (CORREÇÃO: collection 'users', não 'colaboradores')
-                // Isso garante que o login-colaborador.html encontre o usuário depois
+                // 3. Perfil na Empresa
                 await setDoc(doc(db, "companies", companyId, "users", uid), {
-                    name: name, // Padronizado para 'name' conforme o sistema
+                    name: name,
                     email, 
-                    role: "collaborator", // Role padronizada
-                    level: 10, // Nível base
+                    role: "collaborator",
+                    level: 10,
                     cargo: "Colaborador", 
                     setorID: "Geral",
                     horario: "08:00 às 17:00", 
@@ -184,8 +203,7 @@
                     createdAt: serverTimestamp()
                 });
 
-                // 4. Criação da Escala Inicial (Para aparecer no Admin imediatamente)
-                // Pega data atual para definir o Mês ID (ex: 2025-12)
+                // 4. Criação da Escala Inicial
                 const now = new Date();
                 const mesId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                 
@@ -194,8 +212,12 @@
                     horario: "08:00 às 17:00"
                 });
 
-                alert("Conta criada com sucesso!");
-                window.location.href = "login-colaborador.html";
+                // 3. SUCESSO: EXIBE MODAL E AGUARDA REDIRECIONAMENTO
+                showSuccessAnim();
+                
+                setTimeout(() => {
+                    window.location.href = "login-colaborador.html";
+                }, 2500); // Aguarda 2.5 segundos para o usuário ver a animação
 
             } catch (err) {
                 console.error("Erro no cadastro:", err);
@@ -204,7 +226,7 @@
                 
                 let msg = "Erro ao processar cadastro.";
                 if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já possui conta.";
-                if (err.code === 'permission-denied') msg = "Erro de permissão ao salvar dados.";
+                if (err.code === 'permission-denied') msg = "Erro de permissão ao salvar dados. (Verifique as Regras)";
                 
                 showError(msg);
             }
