@@ -1,7 +1,7 @@
-// collab-module.js - Versão Final
-import { db, state, getCompanyCollection, getCompanyDoc, pad, monthNames, isValidShiftStartDate } from './config.js';
+// collab-module.js
+import { db, state, getCompanyCollection, getCompanyDoc, pad, monthNames } from './config.js';
 import { addDoc, serverTimestamp, query, where, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-import { updatePersonalView, updateWeekendTable, showNotification } from './ui.js';
+import { updatePersonalView, showNotification } from './ui.js';
 
 const shifts = ["07:00 às 19:00", "07:30 às 17:18", "08:00 às 17:48", "08:30 às 18:18", "12:12 às 22:00", "19:00 às 07:00", "22:00 às 07:48"];
 let mini = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: null };
@@ -9,26 +9,20 @@ let mini = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: null };
 export function initCollabUI() {
     ['adminControls', 'adminTabNav', 'editToolbar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
     ['collabHeader', 'collabControls'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
-    
     const name = state.profile?.name || state.profile?.nome;
     if(name) {
         document.getElementById('welcomeUser').textContent = `Olá, ${name.split(' ')[0]}`;
         const sel = document.getElementById('employeeSelect');
         if(sel) { sel.innerHTML = `<option>${name}</option>`; sel.value = name; sel.disabled = true; }
-        
-        // Renderiza a escala garantida pelo main.js (que já corrigiu os 'F')
         updatePersonalView(name);
-        initRequestsTab(); 
-        initInboxTab();    
+        initRequestsTab(); initInboxTab();    
     }
-    setupEvents();
-    renderMiniCal();
+    setupEvents(); renderMiniCal();
 }
 
 export function destroyCollabUI() {
     ['collabHeader', 'collabControls'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
-    const sel = document.getElementById('employeeSelect');
-    if(sel) sel.disabled = false; 
+    const sel = document.getElementById('employeeSelect'); if(sel) sel.disabled = false; 
 }
 
 function setupEvents() {
@@ -55,70 +49,44 @@ function renderMiniCal() {
         date.setDate(date.getDate()+1);
     }
 }
-
-export function handleCollabCellClick() { 
-    showNotification("Use o botão 'Nova Solicitação' para trocas.", "info"); 
-}
-
+export function handleCollabCellClick() { showNotification("Use 'Nova Solicitação' para trocas.", "info"); }
 function openModal() {
     document.getElementById('requestModal').classList.remove('hidden');
     const sel = document.getElementById('reqTargetEmployee');
     sel.innerHTML = '<option value="">Selecione...</option>';
-    Object.keys(state.scheduleData).forEach(n => { 
-        if(n !== (state.profile.name||state.profile.nome)) sel.innerHTML += `<option value="${n}">${n}</option>`; 
-    });
+    Object.keys(state.scheduleData).forEach(n => { if(n !== (state.profile.name||state.profile.nome)) sel.innerHTML += `<option value="${n}">${n}</option>`; });
     document.getElementById('reqNewShift').innerHTML = shifts.map(s=>`<option value="${s}">${s}</option>`).join('');
     handleType(); 
 }
-
 function handleType() {
     const t = document.getElementById('reqType').value;
     const isShiftChange = (t === 'novo_turno');
     document.getElementById('divReqTarget').classList.toggle('hidden', isShiftChange);
     document.getElementById('divReqShift').classList.toggle('hidden', !isShiftChange);
 }
-
 async function sendReq() {
     const type = document.getElementById('reqType').value;
     const date = document.getElementById('reqDateManual').value;
     const reason = document.getElementById('reqReason').value;
     let target = null, tUid = null, shift = null;
-
     try {
-        if(!date) throw new Error("Data inválida. Use o calendário.");
-        if (type === 'novo_turno') {
-            shift = document.getElementById('reqNewShift').value;
-            target = 'LÍDER'; tUid = 'ADMIN'; 
-        } else {
-            target = document.getElementById('reqTargetEmployee').value;
-            if(!target) throw new Error("Selecione um colega para trocar.");
-            const targetData = Object.values(state.scheduleData).find(u=>u.name===target);
-            if(targetData) tUid = targetData.uid;
-            else throw new Error("Colega não encontrado na base.");
-        }
+        if(!date) throw new Error("Data inválida.");
+        if (type === 'novo_turno') { shift = document.getElementById('reqNewShift').value; target = 'LÍDER'; tUid = 'ADMIN'; } 
+        else { target = document.getElementById('reqTargetEmployee').value; if(!target) throw new Error("Selecione um colega."); const targetData = Object.values(state.scheduleData).find(u=>u.name===target); if(targetData) tUid = targetData.uid; else throw new Error("Colega não encontrado."); }
         const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
-        await addDoc(getCompanyCollection("solicitacoes"), {
-            monthId: docId, requester: (state.profile.name||state.profile.nome), requesterUid: state.currentUser.uid,
-            dayIndex: parseInt(date.split('-')[2])-1, type, target, targetUid: tUid, desiredShift: shift, reason,
-            status: type === 'novo_turno' ? 'pending_leader' : 'pending_peer', createdAt: serverTimestamp()
-        });
+        await addDoc(getCompanyCollection("solicitacoes"), { monthId: docId, requester: (state.profile.name||state.profile.nome), requesterUid: state.currentUser.uid, dayIndex: parseInt(date.split('-')[2])-1, type, target, targetUid: tUid, desiredShift: shift, reason, status: type === 'novo_turno' ? 'pending_leader' : 'pending_peer', createdAt: serverTimestamp() });
         document.getElementById('requestModal').classList.add('hidden');
-        showNotification("Solicitação enviada!");
+        showNotification("Enviado!");
     } catch(e) { showNotification(e.message, "error"); }
 }
-
 function initRequestsTab() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
     const q = query(getCompanyCollection("solicitacoes"), where("monthId", "==", docId), where("requester", "==", (state.profile.name||state.profile.nome)));
     onSnapshot(q, (snap) => {
         const list = document.getElementById('sentRequestsList');
-        if(list) list.innerHTML = snap.docs.map(d => { 
-            const r = d.data(); 
-            return `<div class="apple-glass p-2 mb-2 text-[9px] relative"><button onclick="window.deleteRequest('${d.id}')" class="absolute top-2 right-2 text-red-400"><i class="fas fa-trash"></i></button><strong>${r.type} • DIA ${r.dayIndex+1}</strong><br><span class="text-gray-400">${r.status}</span></div>` 
-        }).join('') || '<p class="text-center text-gray-500 text-[8px]">Vazio</p>';
+        if(list) list.innerHTML = snap.docs.map(d => `<div class="apple-glass p-2 mb-2 text-[9px] relative"><button onclick="window.deleteRequest('${d.id}')" class="absolute top-2 right-2 text-red-400"><i class="fas fa-trash"></i></button><strong>${d.data().type} • DIA ${d.data().dayIndex+1}</strong><br><span class="text-gray-400">${d.data().status}</span></div>`).join('') || '<p class="text-center text-gray-500 text-[8px]">Vazio</p>';
     });
 }
-
 function initInboxTab() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
     const q = query(getCompanyCollection("solicitacoes"), where("monthId", "==", docId), where("targetUid", "==", state.currentUser.uid), where("status", "==", "pending_peer"));
@@ -131,6 +99,5 @@ function initInboxTab() {
         }
     });
 }
-
 window.deleteRequest = async (id) => { if(confirm("Excluir?")) await deleteDoc(getCompanyDoc("solicitacoes", id)); };
 window.handlePeerResponse = async (id, act) => { await updateDoc(getCompanyDoc("solicitacoes", id), { status: act==='approve'?'pending_leader':'rejected' }); };
