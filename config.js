@@ -1,9 +1,8 @@
-// config.js
+// config.js - Versão Atualizada (Com Hierarquia)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getFirestore, collection, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-// --- CONFIGURAÇÃO ATUALIZADA (CRONOSYS) ---
 const firebaseConfig = {
   apiKey: "AIzaSyDcD_4x6OHZS4dobzviooQOKwlP2EGxNHo",
   authDomain: "cronosys.firebaseapp.com",
@@ -18,9 +17,8 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-// --- LINHA OBRIGATÓRIA PARA O SCRIPT FUNCIONAR ---
+// Helper Global para Debug
 window.db = db; 
-// -------------------------------------------------
 
 export const state = {
     isAdmin: false,
@@ -32,11 +30,10 @@ export const state = {
     scheduleData: {}, 
     selectedMonthObj: { year: 2025, month: 11 }, 
     activeRequestType: 'troca_dia_trabalho',
-    companyId: null // Armazena o ID da empresa (Tenant)
+    companyId: null 
 };
 
-// --- FUNÇÕES HELPER PARA SAAS ---
-
+// --- HELPER FUNCTIONS ---
 export function getCompanyCollection(path) {
     if (!state.companyId) throw new Error("Erro Crítico: ID da empresa não definido.");
     return collection(db, "companies", state.companyId, path);
@@ -47,7 +44,6 @@ export function getCompanyDoc(path, docId) {
     return doc(db, "companies", state.companyId, path, docId);
 }
 
-// Para subcoleções profundas (ex: escalas/2025-12/plantonistas)
 export function getCompanySubCollection(root, docId, sub) {
     if (!state.companyId) throw new Error("Erro Crítico: ID da empresa não definido.");
     return collection(db, "companies", state.companyId, root, docId, sub);
@@ -58,18 +54,13 @@ export function getCompanySubDoc(root, docId, sub, subDocId) {
     return doc(db, "companies", state.companyId, root, docId, sub, subDocId);
 }
 
-// --- UTILITÁRIOS ---
-
 export const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-const generateMonths = () => {
+export const availableMonths = (() => {
     const list = [{ year: 2025, month: 11 }];
-    for (let m = 0; m <= 11; m++) {
-        list.push({ year: 2026, month: m });
-    }
+    for (let m = 0; m <= 11; m++) list.push({ year: 2026, month: m });
     return list;
-};
-export const availableMonths = generateMonths();
+})();
 
 export function hideLoader() {
     const o = document.getElementById('appLoadingOverlay');
@@ -101,4 +92,19 @@ export function isWorkingTime(timeRange) {
     const start = h1 * 60 + m1;
     const end = h2 * 60 + m2;
     return end < start ? (curr >= start || curr < end) : (curr >= start && curr < end);
+}
+
+// --- NOVO: DEFINIÇÃO DE HIERARQUIA ---
+export const HIERARCHY = {
+    CEO: { role: 'ceo', level: 100, label: 'CEO' },
+    DIRETOR: { role: 'director', level: 90, label: 'Diretor' },
+    GERENTE: { role: 'manager', level: 70, label: 'Gerente' },
+    COORDENADOR: { role: 'coordinator', level: 50, label: 'Coordenador' },
+    SUPERVISOR: { role: 'supervisor', level: 40, label: 'Supervisor' },
+    LIDER: { role: 'leader', level: 30, label: 'Líder de Célula' },
+    COLABORADOR: { role: 'collaborator', level: 10, label: 'Colaborador' }
+};
+
+export function canSee(userLevel, requiredLevel) {
+    return userLevel >= requiredLevel;
 }
