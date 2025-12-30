@@ -1,7 +1,4 @@
-/**
- * main.js - Versão Blindada (Correção de Tags e Falhas de Dados)
- */
-
+// main.js - Versão Final (Com Blindagem de Dados)
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
 import * as Admin from './admin-module.js';
 import * as Collab from './collab-module.js';
@@ -9,7 +6,7 @@ import { updatePersonalView, switchSubTab, renderMonthSelector, renderWeekendDut
 import { doc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-// Exportações Globais
+// Exportações
 window.switchSubTab = switchSubTab;
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
@@ -19,6 +16,7 @@ window.handleCellClick = (name, dayIndex) => { state.isAdmin ? Admin.handleAdmin
 const performLogout = async () => { try { await signOut(auth); window.location.href = "start.html"; } catch (e) { console.error(e); } };
 ['btnLogout', 'btnLogoutMobile'].forEach(id => { const btn = document.getElementById(id); if(btn) btn.onclick = performLogout; });
 
+// Autenticação e Carregamento
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         state.currentUser = user;
@@ -26,7 +24,7 @@ onAuthStateChanged(auth, async (user) => {
             const idTokenResult = await user.getIdTokenResult(true);
             let rawCompanyId = idTokenResult.claims.companyId;
 
-            // Fallback de segurança para sys_users
+            // Fallback para sys_users (caso o claim falhe na primeira vez)
             if (!rawCompanyId) {
                 const sysUserSnap = await getDoc(doc(db, "sys_users", user.uid));
                 if (sysUserSnap.exists()) rawCompanyId = sysUserSnap.data().companyId;
@@ -35,16 +33,15 @@ onAuthStateChanged(auth, async (user) => {
             if (!rawCompanyId) return performLogout();
             state.companyId = String(rawCompanyId).trim();
 
-            // --- CARREGAMENTO DE PERFIL (REATIVO) ---
+            // REATIVIDADE DE PERFIL
             const userDocRef = getCompanyDoc("users", user.uid);
             let isFirstLoad = true;
 
             onSnapshot(userDocRef, (docSnap) => {
-                // Se não achar em 'users', tenta rodar sem perfil (pode ser admin migrando)
                 if (!docSnap.exists()) {
-                    console.warn("Perfil não migrado ou inexistente em 'users'.");
+                    console.warn("Perfil não encontrado em 'users'.");
                     if(isFirstLoad) { 
-                        state.profile = { level: 10, name: "Visitante" }; // Fallback
+                        state.profile = { level: 10, name: "Visitante" }; 
                         setInterfaceMode('collab'); 
                         loadData();
                     }
@@ -54,11 +51,10 @@ onAuthStateChanged(auth, async (user) => {
                 const newData = docSnap.data();
                 const oldLevel = state.profile?.level || 0;
                 state.profile = newData;
-                
                 const myLevel = newData.level || 10;
                 state.isDualRole = myLevel >= 40; 
 
-                // Feedback de Promoção
+                // Notificação de Promoção
                 if (!isFirstLoad && myLevel > oldLevel) {
                     showNotification(`Permissões atualizadas: ${newData.cargo}`, "success");
                 }
@@ -85,14 +81,11 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-// --- MOTOR DE DADOS ---
+// Carregamento de Dados (Escalas + Usuários)
 async function loadData() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month + 1).padStart(2, '0')}`;
     
     try {
-        // Busca paralela: Escalas e Perfis
-        // OBS: Se você ainda não migrou, usersSnap virá vazio e o dashboard ficará zerado.
-        // Use o botão de migração no painel Admin para corrigir.
         const [rosterSnap, usersSnap] = await Promise.all([
             getDocs(getCompanySubCollection("escalas", docId, "plantonistas")),
             getDocs(getCompanyCollection("users"))
@@ -105,7 +98,7 @@ async function loadData() {
         
         renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
         
-        // Atualiza a tela atual (Admin ou Collab)
+        // Renderiza a tela correta após carregar
         if (state.currentViewMode === 'admin') {
             Admin.renderDailyDashboard();
             Admin.populateEmployeeSelect();
@@ -115,51 +108,45 @@ async function loadData() {
         
         renderWeekendDuty();
 
-    } catch (error) { 
-        console.error("Erro LoadData:", error); 
-    } finally { 
-        hideLoader(); 
-    }
+    } catch (error) { console.error(error); } finally { hideLoader(); }
 }
 
-// Cruzamento de dados Blindado
+// Cruzamento de Dados e Normalização
 async function processScheduleData(querySnapshot, detailsMap) {
     const processed = {};
     
-    // 1. Processa quem tem escala salva
+    // 1. Usuários COM documento de escala criado
     querySnapshot.forEach((doc) => {
         const uid = doc.id;
         const scaleData = doc.data();
         const userProfile = detailsMap[uid];
 
-        // Só processa se o usuário existir em 'users' (ou seja, foi migrado)
         if (userProfile && userProfile.active !== false) { 
             const safeName = userProfile.name || userProfile.nome || "Sem Nome";
             processed[safeName] = buildUserObj(uid, userProfile, scaleData.calculatedSchedule);
         }
     });
 
-    // 2. Adiciona quem está no cadastro 'users' mas não tem escala ainda
+    // 2. Usuários SEM escala (Preenche com F)
     Object.keys(detailsMap).forEach(uid => {
         const u = detailsMap[uid];
         const safeName = u.name || u.nome || "Sem Nome";
 
         if (u.active !== false && !Object.values(processed).some(p => p.uid === uid)) {
-             processed[safeName] = buildUserObj(uid, u, []);
+             processed[safeName] = buildUserObj(uid, u, []); // Manda array vazio para ser preenchido
         }
     });
 
     state.scheduleData = processed;
 }
 
-// Construtor de Objeto Seguro (Corrige Tags Vazias)
+// BLINDAGEM DO OBJETO DE USUÁRIO
 function buildUserObj(uid, profile, schedule) {
-    const daysInMonth = 31; // Simplificado para garantir array cheio
+    const daysInMonth = 32; // Margem de segurança
     let safeSchedule = [];
 
-    // LÓGICA DE CORREÇÃO DE DADOS PERDIDOS
+    // Se existe array, normaliza os valores
     if (Array.isArray(schedule)) {
-        // Se o array existe, varre item a item corrigindo vazios
         for(let i=0; i<daysInMonth; i++) {
             const val = schedule[i];
             // Se for nulo, undefined ou string vazia, vira 'F'
@@ -170,7 +157,7 @@ function buildUserObj(uid, profile, schedule) {
             }
         }
     } else {
-        // Se não existe escala, cria tudo Folga
+        // Se não existe, cria tudo Folga
         safeSchedule = Array(daysInMonth).fill("F");
     }
 
@@ -183,11 +170,11 @@ function buildUserObj(uid, profile, schedule) {
         setorID: profile.setorID || 'NOC',
         email: profile.email || "",
         horario: profile.horario || "08:00 às 17:00",
-        schedule: safeSchedule, // Agora garantido que não tem vazios
+        schedule: safeSchedule, 
         ...profile 
     };
 
-    // Remove undefined residuais
+    // Remove undefined
     Object.keys(userObj).forEach(key => {
         if (userObj[key] === undefined) userObj[key] = null;
     });
