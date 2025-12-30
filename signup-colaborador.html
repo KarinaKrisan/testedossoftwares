@@ -68,7 +68,7 @@
                 <i class="fas fa-times text-2xl"></i>
             </div>
             <h3 class="text-white font-bold mb-1 tracking-tight">Convite Inválido</h3>
-            <p id="errorDetail" class="text-gray-500 text-[10px] mb-4 uppercase tracking-widest leading-relaxed">Este link expirou ou não existe.</p>
+            <p id="errorDetail" class="text-gray-500 text-[10px] mb-4 uppercase tracking-widest leading-relaxed">Verifique o link ou contate seu gestor.</p>
             <a href="start.html" class="text-[10px] text-blue-400 hover:text-white uppercase font-bold tracking-widest transition-colors">Voltar ao Início</a>
         </div>
     </div>
@@ -78,7 +78,6 @@
         import { createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
         import { doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
-        // Alternar visualização da senha
         const toggle = document.getElementById('togglePassword');
         const passInput = document.getElementById('userPass');
         toggle.onclick = () => {
@@ -87,37 +86,51 @@
             toggle.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
         };
 
-        // Validação robusta do convite no carregamento da página
+        // --- VALIDAÇÃO DO CONVITE (SAAS FIX) ---
         async function checkInvite() {
             const urlParams = new URLSearchParams(window.location.search);
-            const inviteCode = urlParams.get('convite') || window.location.search.split('=')[1];
+            const inviteCode = urlParams.get('convite');
+            const companyId = urlParams.get('company'); // Agora lemos o ID da empresa da URL
 
-            if (!inviteCode) {
-                showInvalid("Código de convite não encontrado no link.");
+            if (!inviteCode || !companyId) {
+                showInvalid("Link incompleto (falta código ou ID da empresa).");
                 return;
             }
 
             try {
-                const inviteRef = doc(db, "convites", inviteCode.trim());
+                // CORREÇÃO: Busca dentro da subcoleção da empresa
+                const inviteRef = doc(db, "companies", companyId, "convites", inviteCode.trim());
                 const inviteSnap = await getDoc(inviteRef);
 
                 if (inviteSnap.exists() && inviteSnap.data().active === true) {
                     const data = inviteSnap.data();
                     
-                    // Bloqueia os dados validados no formulário
-                    document.getElementById('realCompanyId').value = data.companyId;
+                    // Preenche campos ocultos e UI
+                    document.getElementById('realCompanyId').value = companyId;
                     document.getElementById('validatedInviteCode').value = inviteCode.trim();
-                    document.getElementById('companyDisplay').value = data.companyName || "Sitelbra"; 
                     
-                    document.getElementById('inviteStatus').innerText = "Convite validado com sucesso!";
+                    // Tenta pegar o nome da empresa do convite ou busca no doc da empresa
+                    let compName = "Sua Empresa";
+                    if(data.companyName) {
+                        compName = data.companyName;
+                    } else {
+                        // Fallback: busca nome da empresa se não estiver no convite
+                        const compSnap = await getDoc(doc(db, "companies", companyId));
+                        if(compSnap.exists()) compName = compSnap.data().name || compSnap.data().nome;
+                    }
+
+                    document.getElementById('companyDisplay').value = compName;
+                    document.getElementById('inviteStatus').innerText = "Convite validado";
                     document.getElementById('loadingCheck').classList.add('hidden');
                     document.getElementById('collabRegisterForm').classList.remove('hidden');
                 } else {
-                    showInvalid("Este convite expirou ou foi revogado.");
+                    showInvalid("Este convite expirou ou não existe nesta organização.");
                 }
             } catch (e) {
                 console.error("Erro na validação:", e);
-                showInvalid("Erro de conexão com o banco de dados.");
+                // Se der erro de permissão, é porque o user não existe no auth ainda E a regra bloqueou leitura pública, 
+                // mas a regra "read" de convites que criamos permite leitura se souber o ID.
+                showInvalid("Erro de conexão. Código: " + e.code);
             }
         }
 
@@ -125,13 +138,12 @@
             document.getElementById('loadingCheck').classList.add('hidden');
             document.getElementById('invalidInvite').classList.remove('hidden');
             document.getElementById('errorDetail').innerText = msg;
-            document.getElementById('inviteStatus').innerText = "Falha na validação";
+            document.getElementById('inviteStatus').innerText = "Erro de Validação";
         }
 
-        // Executa a verificação inicial
         checkInvite();
 
-        // Lógica de Registo do Colaborador
+        // --- REGISTRO DO COLABORADOR ---
         document.getElementById('collabRegisterForm').onsubmit = async (e) => {
             e.preventDefault();
             const btn = document.getElementById('btnRegister');
@@ -140,20 +152,17 @@
             const email = document.getElementById('userEmail').value.trim();
             const pass = document.getElementById('userPass').value;
 
-            if(pass.length < 6) {
-                showError("A senha deve ter no mínimo 6 caracteres.");
-                return;
-            }
+            if(pass.length < 6) { showError("A senha deve ter no mínimo 6 caracteres."); return; }
 
             btn.disabled = true; 
             btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Criando conta...';
 
             try {
-                // 1. Criação do utilizador no Firebase Auth
+                // 1. Auth do Firebase
                 const cred = await createUserWithEmailAndPassword(auth, email, pass);
                 const uid = cred.user.uid;
 
-                // 2. Mapeamento Global (sys_users) para login Multi-tenant
+                // 2. Vínculo Global (sys_users)
                 await setDoc(doc(db, "sys_users", uid), { 
                     email, 
                     companyId, 
@@ -161,31 +170,43 @@
                     createdAt: serverTimestamp() 
                 });
                 
-                // 3. Perfil detalhado dentro da coleção da empresa (Sitelbra)
-                await setDoc(doc(db, "companies", companyId, "colaboradores", uid), {
-                    nome: name, 
+                // 3. Perfil na Empresa (CORREÇÃO: collection 'users', não 'colaboradores')
+                // Isso garante que o login-colaborador.html encontre o usuário depois
+                await setDoc(doc(db, "companies", companyId, "users", uid), {
+                    name: name, // Padronizado para 'name' conforme o sistema
                     email, 
-                    role: "Operador", 
+                    role: "collaborator", // Role padronizada
+                    level: 10, // Nível base
                     cargo: "Colaborador", 
-                    setorID: "NOC",
+                    setorID: "Geral",
                     horario: "08:00 às 17:00", 
+                    active: true,
                     createdAt: serverTimestamp()
                 });
 
-                // 4. Inicialização automática da escala mensal
-                const mesId = "2025-12";
+                // 4. Criação da Escala Inicial (Para aparecer no Admin imediatamente)
+                // Pega data atual para definir o Mês ID (ex: 2025-12)
+                const now = new Date();
+                const mesId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                
                 await setDoc(doc(db, "companies", companyId, "escalas", mesId, "plantonistas", uid), {
                     calculatedSchedule: Array(31).fill('F'), 
                     horario: "08:00 às 17:00"
                 });
 
-                alert("Cadastro realizado com sucesso! Bem-vindo(a).");
+                alert("Conta criada com sucesso!");
                 window.location.href = "login-colaborador.html";
+
             } catch (err) {
                 console.error("Erro no cadastro:", err);
                 btn.disabled = false;
                 btn.innerText = "Finalizar Cadastro";
-                showError(err.code === 'auth/email-already-in-use' ? "Este e-mail já está sendo utilizado por outra conta." : "Ocorreu um erro ao processar o seu cadastro.");
+                
+                let msg = "Erro ao processar cadastro.";
+                if (err.code === 'auth/email-already-in-use') msg = "Este e-mail já possui conta.";
+                if (err.code === 'permission-denied') msg = "Erro de permissão ao salvar dados.";
+                
+                showError(msg);
             }
         };
 
