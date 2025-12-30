@@ -1,7 +1,7 @@
-// admin-module.js - Versão Final (CEO Oculto nas Escalas)
+// admin-module.js - Versão Atualizada (Correção de Permissões SaaS)
 import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc } from './config.js';
 import { showNotification, updateCalendar, renderWeekendDuty } from './ui.js';
-import { doc, getDoc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, collection, addDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { doc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 let allLoadedLogs = [];
 let dailyUpdateInterval = null;
@@ -138,7 +138,7 @@ function showSuccessAnim(text = "Concluído") {
     setTimeout(() => successModal.classList.add('hidden'), 2000);
 }
 
-// --- GESTÃO DE CONVITES ---
+// --- GESTÃO DE CONVITES (CORRIGIDO: Escopo da Empresa) ---
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer') || document.getElementById('adminControls');
     if (!container) return;
@@ -151,12 +151,14 @@ async function renderInviteWidget() {
     }
 
     try {
-        const q = query(collection(db, "convites"), where("companyId", "==", state.companyId), where("active", "==", true));
+        // CORREÇÃO AQUI: Usa getCompanyCollection para buscar dentro da empresa
+        const q = query(getCompanyCollection("convites"), where("active", "==", true));
         const snap = await getDocs(q);
         
         if (!snap.empty) {
             const inviteCode = snap.docs[0].id;
-            const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}`;
+            // Adiciona o companyId na URL para facilitar o cadastro depois, ou apenas o código se for único
+            const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
             
             div.innerHTML = `
                 <h3 class="text-[10px] font-bold text-white uppercase mb-1 flex items-center justify-between">
@@ -177,7 +179,8 @@ async function renderInviteWidget() {
 
             document.getElementById('btnRevokeInvite').onclick = () => {
                 askConfirmation("Ao revogar, ninguém mais poderá usar este link. Continuar?", async () => {
-                    await updateDoc(doc(db, "convites", inviteCode), { active: false });
+                    // CORREÇÃO: Usa getCompanyDoc
+                    await updateDoc(getCompanyDoc("convites", inviteCode), { active: false });
                     showSuccessAnim("Link Revogado");
                     renderInviteWidget();
                 });
@@ -189,24 +192,21 @@ async function renderInviteWidget() {
             
             document.getElementById('btnGenerateInvite').onclick = async () => {
                 try {
-                    const code = Math.random().toString(36).substring(2, 5).toUpperCase() + '-' + Math.random().toString(36).substring(2, 5).toUpperCase();
+                    // Gera código alfanumérico simples
+                    const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
                     
-                    const companySnap = await getDoc(doc(db, "companies", state.companyId));
-                    const companyName = companySnap.exists() ? (companySnap.data().name || companySnap.data().nome) : "Minha Empresa";
-
-                    await setDoc(doc(db, "convites", code), { 
-                        companyId: state.companyId, 
-                        companyName: companyName,
+                    // Salva DENTRO da empresa (companies/{id}/convites/{code})
+                    await setDoc(getCompanyDoc("convites", code), { 
                         createdBy: state.currentUser.uid, 
                         createdAt: serverTimestamp(), 
                         active: true 
                     });
                     
-                    showSuccessAnim("Link Gerado para " + companyName);
+                    showSuccessAnim("Link Gerado");
                     renderInviteWidget();
                 } catch(err) {
                     console.error("Erro ao gerar:", err);
-                    showNotification("Erro de permissão", "error");
+                    showNotification("Erro de permissão: " + err.message, "error");
                 }
             };
         }
@@ -228,7 +228,7 @@ export function renderDailyDashboard() {
     const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
 
     Object.values(state.scheduleData).sort((a,b) => a.name.localeCompare(b.name)).forEach(emp => {
-        // Opcional: Se quiser esconder o CEO do dashboard diário também, pode filtrar aqui:
+        // Filtro opcional: CEO não aparece no dashboard
         // if (emp.level >= 100) return;
 
         const sToday = emp.schedule[todayIndex] || 'F';
@@ -309,11 +309,7 @@ async function confirmSaveToCloud() {
     askConfirmation(`Deseja salvar as alterações de ${emp}?`, async () => {
         try {
             const user = state.scheduleData[emp];
-            
-            // 1. Descobre quantos dias tem o mês atual
             const daysInMonth = new Date(state.selectedMonthObj.year, state.selectedMonthObj.month + 1, 0).getDate();
-            
-            // 2. Reconstrói o array item por item (evita undefined)
             const safeSchedule = [];
             for (let i = 0; i < daysInMonth; i++) {
                 const val = user.schedule[i];
@@ -335,15 +331,15 @@ async function confirmSaveToCloud() {
     });
 }
 
-// --- PREENCHIMENTO DO SELECT (COM FILTRO DE CEO) ---
+// --- PREENCHIMENTO DO SELECT ---
 export function populateEmployeeSelect() {
     const s = document.getElementById('employeeSelect');
     if(s) { 
         s.innerHTML = '<option value="">Selecionar...</option>'; 
         Object.keys(state.scheduleData || {}).sort().forEach(n => {
             const user = state.scheduleData[n];
-            // FILTRO: Esconde CEO (Nível 100) da lista de edição
-            if (user.level < 100) {
+            // Admin pode ver todo mundo, mas idealmente não edita a si mesmo se for regra estrita
+            if (user.level < 100) { 
                 s.innerHTML += `<option value="${n}">${n}</option>`;
             }
         }); 
@@ -394,6 +390,7 @@ function initApprovalsTab() {
     });
 }
 
+// CORREÇÃO: Usa getCompanyCollection para Logs
 async function internalApplyLogFilter() {
     const q = query(getCompanyCollection("logs_auditoria"), orderBy("timestamp", "desc"));
     onSnapshot(q, (snap) => {
