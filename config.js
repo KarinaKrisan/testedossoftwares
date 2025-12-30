@@ -1,4 +1,4 @@
-// config.js - Versão Atualizada (Com Hierarquia)
+// config.js - Núcleo de Configuração
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getFirestore, collection, doc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
@@ -17,7 +17,7 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-// Helper Global para Debug
+// Helper para Debug no Console
 window.db = db; 
 
 export const state = {
@@ -28,12 +28,12 @@ export const state = {
     currentUser: null,
     profile: null, 
     scheduleData: {}, 
-    selectedMonthObj: { year: 2025, month: 11 }, 
+    selectedMonthObj: { year: 2025, month: 11 }, // Dezembro (0-indexado: 11)
     activeRequestType: 'troca_dia_trabalho',
     companyId: null 
 };
 
-// --- HELPER FUNCTIONS ---
+// --- HELPER FUNCTIONS (SaaS) ---
 export function getCompanyCollection(path) {
     if (!state.companyId) throw new Error("Erro Crítico: ID da empresa não definido.");
     return collection(db, "companies", state.companyId, path);
@@ -94,7 +94,7 @@ export function isWorkingTime(timeRange) {
     return end < start ? (curr >= start || curr < end) : (curr >= start && curr < end);
 }
 
-// --- NOVO: DEFINIÇÃO DE HIERARQUIA ---
+// --- HIERARQUIA DINÂMICA ---
 export const HIERARCHY = {
     CEO: { role: 'ceo', level: 100, label: 'CEO' },
     DIRETOR: { role: 'director', level: 90, label: 'Diretor' },
