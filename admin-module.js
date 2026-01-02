@@ -27,9 +27,9 @@ export function initAdminUI() {
     renderEditToolbar(); 
     initApprovalsTab(); 
     renderInviteWidget(); 
-    initMonthSelector(); // Inicia o seletor de mês
+    initMonthSelector(); 
     
-    // Inicia Dashboard e garante atualização a cada minuto
+    // Inicia Dashboard
     switchAdminView('Daily');
     
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
@@ -65,29 +65,28 @@ export function switchAdminView(view) {
     }
 }
 
-// --- DASHBOARD (CARDs & TAGs) ---
+// --- DASHBOARD COMPACTO (AQUI ESTÁ A MUDANÇA) ---
 export function renderDailyDashboard() {
     const todayIndex = new Date().getDate() - 1; 
     
-    // Definição dos Grupos e Cores
+    // Definição Completa dos Grupos
     const definitions = {
         'Ativo': { label: 'Trabalhando', color: 'emerald', icon: 'fa-briefcase' },
-        'Off': { label: 'Off/Turno', color: 'purple', icon: 'fa-moon' },
         'Folga': { label: 'Folga', color: 'yellow', icon: 'fa-coffee' },
         'Ferias': { label: 'Férias', color: 'red', icon: 'fa-plane' },
         'Afastado': { label: 'Afastado', color: 'orange', icon: 'fa-user-injured' },
-        'Licenca': { label: 'Licença', color: 'pink', icon: 'fa-baby' }
+        'Licenca': { label: 'Licença', color: 'pink', icon: 'fa-baby' },
+        'Off': { label: 'Off/Turno', color: 'purple', icon: 'fa-moon' }
     };
 
-    const groups = { Ativo: [], Off: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
+    const groups = { Ativo: [], Folga: [], Ferias: [], Afastado: [], Licenca: [], Off: [] };
     
     // Processamento dos Dados
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
             const s = emp.schedule[todayIndex] || 'F';
-            let g = 'Off'; // Default
+            let g = 'Off'; 
             
-            // Lógica de Agrupamento
             if (['T', 'P', 'MT', 'N', 'D'].includes(s)) g = 'Ativo'; 
             else if (['F', 'FS', 'FD'].includes(s)) g = 'Folga';
             else if (s === 'FE') g = 'Ferias';
@@ -98,67 +97,72 @@ export function renderDailyDashboard() {
         });
     }
 
-    // 1. Renderizar CARDS (Estatísticas)
+    // 1. Renderizar STATS (Topo) - Grid de 6 colunas para caber tudo em uma linha (desktop)
     const statsContainer = document.getElementById('dailyStats');
     if (statsContainer) {
+        // Alterado para grid-cols-3 no mobile e grid-cols-6 no desktop
+        statsContainer.className = "grid grid-cols-3 lg:grid-cols-6 gap-2 mb-4";
+        
         statsContainer.innerHTML = Object.keys(definitions).map(key => {
             const def = definitions[key];
             const count = groups[key].length;
-            // Só mostra cards com gente ou os principais
+            
+            // Design mais compacto (text-xs, padding menor)
             return `
-            <div class="premium-glass p-3 rounded-xl border border-white/5 flex items-center justify-between group hover:bg-white/5 transition-all">
-                <div>
-                    <p class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">${def.label}</p>
-                    <p class="text-2xl font-bold text-white">${count}</p>
-                </div>
-                <div class="w-8 h-8 rounded-full bg-${def.color}-500/20 flex items-center justify-center text-${def.color}-400 group-hover:scale-110 transition-transform">
-                    <i class="fas ${def.icon} text-xs"></i>
+            <div class="premium-glass p-2 rounded-lg border border-white/5 flex flex-col items-center justify-center group hover:bg-white/5 transition-all">
+                <div class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mb-1">${def.label}</div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xl font-bold text-white">${count}</span>
+                    <i class="fas ${def.icon} text-${def.color}-400 text-[10px]"></i>
                 </div>
             </div>`;
         }).join('');
     }
 
-    // 2. Renderizar LISTAS DETALHADAS (Grid abaixo dos cards)
+    // 2. Renderizar LISTAS DETALHADAS (Principal) - Grid de 3 colunas
     const gridContainer = document.getElementById('dailyGrid');
     if (gridContainer) {
+        // Alterado para 3 colunas no desktop para caber Ativo, Folga e Outros lado a lado
+        gridContainer.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3";
+        
         gridContainer.innerHTML = Object.keys(definitions).map(key => {
             const list = groups[key];
             const def = definitions[key];
             
-            // Se a lista estiver vazia, não renderiza o bloco (exceto talvez 'Ativo' para feedback)
-            if (list.length === 0 && key !== 'Ativo') return '';
+            // Se vazio, não mostra a lista para economizar espaço (exceto se for Ativo/Folga para referência)
+            if (list.length === 0 && !['Ativo', 'Folga', 'Ferias'].includes(key)) return '';
 
+            // Card da lista com altura reduzida (h-[180px])
             return `
-            <div class="premium-glass rounded-xl border border-white/5 overflow-hidden flex flex-col h-[200px]">
-                <div class="p-3 bg-white/5 border-b border-white/5 flex justify-between items-center">
+            <div class="premium-glass rounded-xl border border-white/5 overflow-hidden flex flex-col h-[180px]">
+                <div class="px-3 py-2 bg-white/5 border-b border-white/5 flex justify-between items-center">
                     <div class="flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-${def.color}-500"></div>
-                        <span class="text-[10px] font-bold text-white uppercase tracking-widest">${def.label}</span>
+                        <div class="w-1.5 h-1.5 rounded-full bg-${def.color}-500 shadow-[0_0_5px_rgba(255,255,255,0.3)]"></div>
+                        <span class="text-[9px] font-bold text-white uppercase tracking-widest">${def.label}</span>
                     </div>
-                    <span class="text-[9px] font-mono text-gray-500">${list.length}</span>
+                    <span class="text-[9px] font-mono text-gray-500 bg-black/20 px-1.5 rounded">${list.length}</span>
                 </div>
-                <div class="p-2 overflow-y-auto custom-scrollbar flex-1 space-y-1">
+                <div class="p-1.5 overflow-y-auto custom-scrollbar flex-1 space-y-1">
                     ${list.map(u => `
-                        <div class="flex items-center justify-between p-2 rounded bg-white/5 hover:bg-white/10 border border-white/5 transition-colors">
-                            <span class="text-[10px] text-gray-200 font-medium truncate w-2/3">${u.name}</span>
-                            <span class="px-1.5 py-0.5 rounded text-[8px] font-bold font-mono bg-${def.color}-500/20 text-${def.color}-400 border border-${def.color}-500/30">
+                        <div class="flex items-center justify-between px-2 py-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group">
+                            <span class="text-[9px] text-gray-300 font-medium truncate w-[70%] group-hover:text-white">${u.name}</span>
+                            <span class="text-[8px] font-bold font-mono text-${def.color}-400">
                                 ${u.status}
                             </span>
                         </div>
                     `).join('')}
-                    ${list.length === 0 ? '<p class="text-[9px] text-gray-600 text-center py-4 italic">Ninguém nesta categoria</p>' : ''}
+                    ${list.length === 0 ? '<div class="h-full flex items-center justify-center"><p class="text-[8px] text-gray-700 uppercase">Vazio</p></div>' : ''}
                 </div>
             </div>`;
         }).join('');
     }
 }
 
-// --- SELETOR DE MÊS (Correção do Dropdown) ---
+// --- SELETOR DE MÊS ---
 function initMonthSelector() {
     const sel = document.getElementById('monthSelect');
     if (!sel) return;
     
-    // Importante: availableMonths vem do config.js
     sel.innerHTML = availableMonths.map(m => {
         const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month;
         return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>
@@ -169,10 +173,7 @@ function initMonthSelector() {
     sel.onchange = (e) => {
         const [y, m] = e.target.value.split('-');
         state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) };
-        
-        // Recarrega dados via main.js
-        if (window.loadData) window.loadData();
-        else location.reload();
+        if (window.loadData) window.loadData(); else location.reload();
     };
 }
 
@@ -245,7 +246,9 @@ function renderEditToolbar() {
         { id: 'F', label: 'F', icon: 'fa-coffee', color: 'text-amber-400', border: 'border-amber-500/50' },
         { id: 'FS', label: 'Sab', icon: 'fa-sun', color: 'text-[#40E0D0]', border: 'border-[#40E0D0]' },
         { id: 'FD', label: 'Dom', icon: 'fa-sun', color: 'text-[#4169E1]', border: 'border-[#4169E1]' },
-        { id: 'FE', label: 'Fér', icon: 'fa-plane', color: 'text-red-400', border: 'border-red-500/50' }
+        { id: 'FE', label: 'Fér', icon: 'fa-plane', color: 'text-red-400', border: 'border-red-500/50' },
+        { id: 'A', label: 'Af', icon: 'fa-user-injured', color: 'text-orange-400', border: 'border-orange-500/50' },
+        { id: 'LM', label: 'LM', icon: 'fa-baby', color: 'text-pink-400', border: 'border-pink-500/50' }
     ];
     toolbar.innerHTML = tools.map(t => `<button onclick="window.setEditTool('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-white/5 border ${t.border} flex items-center gap-1.5 hover:bg-white/10 transition-all"><i class="fas ${t.icon} ${t.color} text-[9px]"></i><span class="text-[8px] font-bold text-white uppercase">${t.label}</span></button>`).join('');
 }
