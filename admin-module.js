@@ -5,7 +5,7 @@ import { doc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, wh
 
 let dailyUpdateInterval = null;
 let activeTool = null; 
-let currentEditingUid = null; // Armazena quem está sendo editado
+let currentEditingUid = null; 
 
 // --- EXPORTAÇÕES GLOBAIS ---
 window.openPromoteModal = openPromoteModal;
@@ -16,7 +16,7 @@ window.rejectRequest = rejectRequest;
 window.setEditTool = setEditTool;
 window.askConfirmation = askConfirmation;
 window.handleAdminCellClick = handleAdminCellClick;
-window.loadSelectedUser = loadSelectedUser; // Nova função para o Dropdown
+window.loadSelectedUser = loadSelectedUser;
 
 // --- INICIALIZAÇÃO ---
 export function initAdminUI() {
@@ -57,7 +57,7 @@ export function switchAdminView(view) {
     
     const tb = document.getElementById('editToolbar');
     const fdsContainer = document.getElementById('weekendDutyContainer');
-    const empSelectContainer = document.getElementById('adminControls'); // Onde fica o select
+    const empSelectContainer = document.getElementById('adminControls');
 
     if (view === 'Daily' || view === 'daily') {
         if(tb) tb.classList.add('hidden');
@@ -69,17 +69,11 @@ export function switchAdminView(view) {
         if(tb) tb.classList.remove('hidden');
         if(fdsContainer) fdsContainer.classList.remove('hidden');
         if(empSelectContainer) empSelectContainer.classList.remove('hidden');
-        
-        // Garante que o select esteja preenchido
         populateEmployeeSelect();
         
-        // Se já tiver alguém selecionado, renderiza. Se não, limpa a tela.
         const select = document.getElementById('employeeSelect');
-        if(select && select.value) {
-            loadSelectedUser(select.value);
-        } else {
-            document.getElementById('calendarContainer').innerHTML = '<div class="p-10 text-center text-gray-500 text-xs uppercase tracking-widest"><i class="fas fa-user-edit text-2xl mb-2"></i><br>Selecione um colaborador acima para editar</div>';
-        }
+        if(select && select.value) loadSelectedUser(select.value);
+        else document.getElementById('calendarContainer').innerHTML = '<div class="premium-glass p-10 text-center text-gray-500 text-xs uppercase tracking-widest border border-white/5 rounded-xl"><i class="fas fa-user-edit text-3xl mb-3 text-purple-400"></i><br>Selecione um colaborador acima para editar</div>';
         
         renderWeekendDuty(); 
     }
@@ -90,153 +84,11 @@ export function switchAdminView(view) {
     }
 }
 
-// --- LÓGICA DE SELEÇÃO E EDIÇÃO INDIVIDUAL ---
-
-export function populateEmployeeSelect() {
-    const s = document.getElementById('employeeSelect');
-    if(!s) return;
-    
-    const currentValue = s.value; // Tenta manter a seleção atual
-    s.innerHTML = '<option value="">Selecione um Colaborador...</option>'; 
-    
-    if(state.scheduleData) {
-        Object.keys(state.scheduleData).sort().forEach(n => {
-            const user = state.scheduleData[n];
-            // Não mostra CEO/Diretor na lista de edição manual comum para segurança
-            if (user.level < 100) {
-                s.innerHTML += `<option value="${n}">${n}</option>`;
-            }
-        });
-    }
-    
-    if(currentValue) s.value = currentValue;
-    
-    // Adiciona o evento de mudança
-    s.onchange = () => loadSelectedUser(s.value);
-}
-
-function loadSelectedUser(name) {
-    currentEditingUid = name; // Nome é a chave no scheduleData
-    if(!name) {
-         document.getElementById('calendarContainer').innerHTML = '';
-         return;
-    }
-    renderIndividualEditor(name);
-}
-
-function renderIndividualEditor(name) {
-    const container = document.getElementById('calendarContainer');
-    const user = state.scheduleData[name];
-    if (!container || !user) return;
-
-    const days = getDaysInMonth(state.selectedMonthObj.year, state.selectedMonthObj.month);
-    
-    // Cabeçalho com Nome e Cargo
-    let html = `
-    <div class="premium-glass p-4 rounded-xl border border-white/5 mb-4 animate-fade-in">
-        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
-            <div>
-                <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full ${user.active !== false ? 'bg-emerald-500' : 'bg-red-500'}"></div>
-                    ${user.name}
-                </h2>
-                <p class="text-[10px] text-gray-400 uppercase tracking-widest pl-5">${user.cargo || 'Colaborador'} • ${user.horario || ''}</p>
-            </div>
-            <div class="text-right">
-                <span class="text-[9px] font-mono text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20">EDITION MODE</span>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-7 gap-1 md:gap-2">
-            ${['DOM','SEG','TER','QUA','QUI','SEX','SÁB'].map(d => `<div class="text-center text-[9px] font-bold text-gray-500 uppercase py-1">${d}</div>`).join('')}
-    `;
-
-    // Células Vazias (Offset)
-    for (let i = 0; i < days[0].getDay(); i++) {
-        html += `<div class="bg-transparent"></div>`;
-    }
-
-    // Dias do Mês
-    days.forEach((day, i) => {
-        const val = user.schedule[i] || 'F';
-        let bgClass = 'bg-white/5 border-white/5 text-gray-400';
-        let icon = '';
-
-        if(val === 'T') { bgClass = 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 font-bold'; icon='<i class="fas fa-briefcase text-[8px] opacity-50"></i>'; }
-        if(val === 'F') { bgClass = 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'; icon='<i class="fas fa-coffee text-[8px] opacity-50"></i>'; }
-        if(['FS','FD'].includes(val)) { bgClass = 'bg-blue-500/20 border-blue-500/50 text-blue-400 font-bold'; icon='<i class="fas fa-sun text-[8px] opacity-50"></i>'; }
-        if(val === 'FE') { bgClass = 'bg-red-500/20 border-red-500/50 text-red-400 font-bold'; icon='<i class="fas fa-plane text-[8px] opacity-50"></i>'; }
-        
-        // Destaque dia atual
-        const isToday = day.getDate() === new Date().getDate() && day.getMonth() === new Date().getMonth();
-        const todayBorder = isToday ? 'ring-1 ring-white' : '';
-
-        html += `
-            <div onclick="window.handleAdminCellClick('${name}', ${i})" 
-                 class="aspect-square rounded-lg border ${bgClass} ${todayBorder} flex flex-col items-center justify-center cursor-pointer hover:scale-105 hover:brightness-125 transition-all select-none relative group">
-                <span class="text-[10px] md:text-sm">${day.getDate()}</span>
-                <span class="text-[9px] md:text-xs font-bold mt-1">${val}</span>
-                <div class="absolute top-1 right-1 hidden md:block">${icon}</div>
-            </div>
-        `;
-    });
-
-    html += `</div>
-        <div class="mt-4 pt-4 border-t border-white/5 flex justify-end">
-             <button id="btnSaveIndividual" class="bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-6 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2">
-                <i class="fas fa-save"></i> Salvar Alterações
-            </button>
-        </div>
-    </div>`;
-
-    container.innerHTML = html;
-    
-    // Reattach save event manually to the new button inside the HTML string
-    document.getElementById('btnSaveIndividual').onclick = confirmSaveToCloud;
-}
-
-export function handleAdminCellClick(name, i) {
-    const user = state.scheduleData[name];
-    if(!user) return;
-    
-    const seq = ['T', 'F', 'FS', 'FD', 'FE', 'A', 'LM'];
-    const currentVal = user.schedule[i] || 'F';
-    
-    // Aplica ferramenta ou rotaciona
-    user.schedule[i] = activeTool !== null ? activeTool : seq[(seq.indexOf(currentVal) + 1) % seq.length];
-    
-    // Re-renderiza APENAS o editor individual para ser rápido
-    renderIndividualEditor(name);
-    // Atualiza o FDS em background
-    renderWeekendDuty();
-}
-
-async function confirmSaveToCloud() {
-    // Pega o nome do select ou da variável global
-    const select = document.getElementById('employeeSelect');
-    const empName = select ? select.value : currentEditingUid;
-
-    if (!empName) return showNotification("Selecione um colaborador", "error");
-    
-    askConfirmation(`Salvar escala de ${empName}?`, async () => {
-        try {
-            const user = state.scheduleData[empName];
-            const safeSchedule = user.schedule.map(v => (v===undefined||v===null||v==="")?"F":v);
-            const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
-            
-            await setDoc(getCompanySubDoc("escalas", docId, "plantonistas", user.uid), { calculatedSchedule: safeSchedule }, { merge: true });
-            await addAuditLog("Edição de Escala", empName);
-            
-            showNotification("Salvo com sucesso");
-            // Atualiza Dashboard em background
-            renderDailyDashboard();
-        } catch(e) { showNotification(e.message, "error"); }
-    });
-}
-
-// --- DASHBOARD (MANTIDO IGUAL AO ANTERIOR) ---
+// --- DASHBOARD (CORRIGIDO) ---
 export function renderDailyDashboard() {
+    // Pega o dia de hoje (1 a 31) - 1 para índice do array
     const todayIndex = new Date().getDate() - 1; 
+    
     const definitions = {
         'Ativo':    { label: 'Trabalhando', color: 'emerald', icon: 'fa-briefcase' },
         'Folga':    { label: 'Folga',       color: 'yellow',  icon: 'fa-coffee' },
@@ -245,75 +97,157 @@ export function renderDailyDashboard() {
         'Afastado': { label: 'Atestado',    color: 'orange',  icon: 'fa-user-injured' },
         'Licenca':  { label: 'Licença',     color: 'pink',    icon: 'fa-baby' }
     };
+
     const groups = { Ativo: [], Folga: [], Ferias: [], Off: [], Afastado: [], Licenca: [] };
+    
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
+            // Garante que pegamos o status do dia atual
             const s = emp.schedule[todayIndex] || 'F';
             let g = 'Off'; 
-            if (['T', 'P', 'MT', 'N', 'D'].includes(s)) g = 'Ativo'; 
-            else if (['F', 'FS', 'FD'].includes(s)) g = 'Folga';
+            
+            // --- CORREÇÃO DE LÓGICA AQUI ---
+            // FS (Sábado) e FD (Domingo) são considerados TRABALHO (Ativo)
+            if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) g = 'Ativo'; 
+            else if (['F'].includes(s)) g = 'Folga';
             else if (s === 'FE') g = 'Ferias';
             else if (s === 'A') g = 'Afastado';
             else if (s === 'LM') g = 'Licenca';
+            // Qualquer outra sigla cai em 'Off'
+            
             if (groups[g]) groups[g].push({ ...emp, status: s });
         });
     }
+
     const gridContainer = document.getElementById('dailyGrid');
     if (gridContainer) {
         document.getElementById('dailyStats').innerHTML = ''; 
         document.getElementById('dailyStats').className = 'hidden';
+
         gridContainer.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4";
         gridContainer.innerHTML = Object.keys(definitions).map(key => {
             const list = groups[key];
             const def = definitions[key];
-            return `<div class="premium-glass rounded-xl border border-white/5 overflow-hidden flex flex-col h-[220px]"><div class="px-4 py-3 bg-white/5 border-b border-white/5 flex justify-between items-center"><div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-${def.color}-500"></div><span class="text-[10px] font-bold text-white uppercase tracking-widest">${def.label}</span></div><span class="text-[10px] font-mono text-gray-400 bg-black/30 px-2 py-0.5 rounded border border-white/5">${list.length}</span></div><div class="p-2 overflow-y-auto custom-scrollbar flex-1 space-y-1">${list.map(u => `<div class="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-colors"><span class="text-[10px] text-gray-300 font-medium truncate w-[70%]">${u.name}</span><span class="text-[9px] font-bold font-mono text-${def.color}-400">${u.status}</span></div>`).join('')}${list.length === 0 ? `<div class="h-full flex flex-col items-center justify-center opacity-30"><i class="fas ${def.icon} text-2xl mb-2"></i><p class="text-[8px] uppercase">Vazio</p></div>` : ''}</div></div>`;
+            
+            return `
+            <div class="premium-glass rounded-xl border border-white/5 overflow-hidden flex flex-col h-[220px]">
+                <div class="px-4 py-3 bg-white/5 border-b border-white/5 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-${def.color}-500 shadow-[0_0_10px_rgba(255,255,255,0.2)]"></div>
+                        <span class="text-[10px] font-bold text-white uppercase tracking-widest">${def.label}</span>
+                    </div>
+                    <span class="text-[10px] font-mono text-gray-400 bg-black/30 px-2 py-0.5 rounded border border-white/5">${list.length}</span>
+                </div>
+                <div class="p-2 overflow-y-auto custom-scrollbar flex-1 space-y-1">
+                    ${list.map(u => `
+                        <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group">
+                            <span class="text-[10px] text-gray-300 font-medium truncate w-[70%] group-hover:text-white">${u.name}</span>
+                            <span class="text-[9px] font-bold font-mono text-${def.color}-400 bg-${def.color}-500/10 px-1.5 rounded border border-${def.color}-500/20">
+                                ${u.status}
+                            </span>
+                        </div>
+                    `).join('')}
+                    ${list.length === 0 ? `<div class="h-full flex flex-col items-center justify-center opacity-30"><i class="fas ${def.icon} text-2xl mb-2"></i><p class="text-[8px] uppercase">Vazio</p></div>` : ''}
+                </div>
+            </div>`;
         }).join('');
     }
 }
 
-// --- FUNÇÕES AUXILIARES E HELPERS ---
-function initMonthSelector() {
-    const sel = document.getElementById('monthSelect');
-    if (!sel) return;
-    sel.innerHTML = availableMonths.map(m => {
-        const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month;
-        return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>${monthNames[m.month]} ${m.year}</option>`;
-    }).join('');
-    sel.onchange = (e) => {
-        const [y, m] = e.target.value.split('-');
-        state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) };
-        if (window.loadData) window.loadData(); else location.reload();
-    };
-}
-
-export async function renderInviteWidget() {
-    const container = document.getElementById('inviteWidgetContainer');
-    if (!container) return;
-    container.innerHTML = ''; 
-    try {
-        const q = query(getCompanyCollection("convites"), where("active", "==", true));
-        onSnapshot(q, (snap) => {
-            const div = document.createElement('div');
-            div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in";
-            if (!snap.empty) {
-                const inviteCode = snap.docs[0].id;
-                const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
-                div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between"><span><i class="fas fa-link text-emerald-400 mr-1"></i> Convite Ativo</span></h3><div class="flex gap-1 mb-2"><input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly><button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px]"><i class="fas fa-copy"></i></button></div><button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase transition-colors">Revogar Link</button>`;
-                container.innerHTML = ''; container.appendChild(div);
-                document.getElementById('btnCopyInvite').onclick = () => { navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value); showNotification("Link copiado!", "success"); };
-                document.getElementById('btnRevokeInvite').onclick = () => { askConfirmation("Revogar convite?", async () => { await updateDoc(getCompanyDoc("convites", inviteCode), { active: false }); showNotification("Revogado"); }); };
-            } else {
-                div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-1">Novo Colaborador</h3><button id="btnGenerateInvite" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-[9px] font-bold uppercase shadow-lg transition-all active:scale-95">Gerar Link</button>`;
-                container.innerHTML = ''; container.appendChild(div);
-                document.getElementById('btnGenerateInvite').onclick = async () => {
-                    const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-                    try { await setDoc(getCompanyDoc("convites", code), { createdBy: state.currentUser.uid, createdAt: serverTimestamp(), active: true }); showNotification("Gerado!"); } catch (e) { showNotification("Erro", "error"); }
-                };
-            }
+// --- EDIÇÃO INDIVIDUAL ---
+export function populateEmployeeSelect() {
+    const s = document.getElementById('employeeSelect');
+    if(!s) return;
+    const currentValue = s.value;
+    s.innerHTML = '<option value="">Selecione um Colaborador...</option>'; 
+    if(state.scheduleData) {
+        Object.keys(state.scheduleData).sort().forEach(n => {
+            const user = state.scheduleData[n];
+            if (user.level < 100) s.innerHTML += `<option value="${n}">${n}</option>`;
         });
-    } catch(e) {}
+    }
+    if(currentValue) s.value = currentValue;
+    s.onchange = () => loadSelectedUser(s.value);
 }
 
+function loadSelectedUser(name) {
+    currentEditingUid = name;
+    if(!name) { document.getElementById('calendarContainer').innerHTML = ''; return; }
+    renderIndividualEditor(name);
+}
+
+function renderIndividualEditor(name) {
+    const container = document.getElementById('calendarContainer');
+    const user = state.scheduleData[name];
+    if (!container || !user) return;
+    const days = getDaysInMonth(state.selectedMonthObj.year, state.selectedMonthObj.month);
+    
+    let html = `
+    <div class="premium-glass p-4 rounded-xl border border-white/5 mb-4 animate-fade-in">
+        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+            <div>
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full ${user.active !== false ? 'bg-emerald-500' : 'bg-red-500'}"></div>
+                    ${user.name}
+                </h2>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest pl-5">${user.cargo || 'Colaborador'}</p>
+            </div>
+            <div class="text-right"><span class="text-[9px] font-mono text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20">EDITION MODE</span></div>
+        </div>
+        <div class="grid grid-cols-7 gap-1 md:gap-2">
+            ${['DOM','SEG','TER','QUA','QUI','SEX','SÁB'].map(d => `<div class="text-center text-[9px] font-bold text-gray-500 uppercase py-1">${d}</div>`).join('')}
+    `;
+    for (let i = 0; i < days[0].getDay(); i++) html += `<div class="bg-transparent"></div>`;
+    days.forEach((day, i) => {
+        const val = user.schedule[i] || 'F';
+        let bgClass = 'bg-white/5 border-white/5 text-gray-400';
+        let icon = '';
+        if(val === 'T') { bgClass = 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 font-bold'; icon='<i class="fas fa-briefcase text-[8px] opacity-50"></i>'; }
+        if(val === 'F') { bgClass = 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'; icon='<i class="fas fa-coffee text-[8px] opacity-50"></i>'; }
+        if(['FS','FD'].includes(val)) { bgClass = 'bg-blue-500/20 border-blue-500/50 text-blue-400 font-bold'; icon='<i class="fas fa-sun text-[8px] opacity-50"></i>'; }
+        if(val === 'FE') { bgClass = 'bg-red-500/20 border-red-500/50 text-red-400 font-bold'; icon='<i class="fas fa-plane text-[8px] opacity-50"></i>'; }
+        if(val === 'A') { bgClass = 'bg-orange-500/20 border-orange-500/50 text-orange-400 font-bold'; icon='<i class="fas fa-user-injured text-[8px] opacity-50"></i>'; }
+        
+        const isToday = day.getDate() === new Date().getDate() && day.getMonth() === new Date().getMonth();
+        const todayBorder = isToday ? 'ring-1 ring-white' : '';
+
+        html += `<div onclick="window.handleAdminCellClick('${name}', ${i})" class="aspect-square rounded-lg border ${bgClass} ${todayBorder} flex flex-col items-center justify-center cursor-pointer hover:scale-105 hover:brightness-125 transition-all select-none relative group"><span class="text-[10px] md:text-sm">${day.getDate()}</span><span class="text-[9px] md:text-xs font-bold mt-1">${val}</span><div class="absolute top-1 right-1 hidden md:block">${icon}</div></div>`;
+    });
+    html += `</div><div class="mt-4 pt-4 border-t border-white/5 flex justify-end"><button id="btnSaveIndividual" class="bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-6 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2"><i class="fas fa-save"></i> Salvar Alterações</button></div></div>`;
+    container.innerHTML = html;
+    document.getElementById('btnSaveIndividual').onclick = confirmSaveToCloud;
+}
+
+export function handleAdminCellClick(name, i) {
+    const user = state.scheduleData[name];
+    if(!user) return;
+    const seq = ['T', 'F', 'FS', 'FD', 'FE', 'A', 'LM'];
+    const currentVal = user.schedule[i] || 'F';
+    user.schedule[i] = activeTool !== null ? activeTool : seq[(seq.indexOf(currentVal) + 1) % seq.length];
+    renderIndividualEditor(name);
+    // Não atualiza dashboard ou fds aqui para não travar a UI, só no save
+}
+
+async function confirmSaveToCloud() {
+    const select = document.getElementById('employeeSelect');
+    const empName = select ? select.value : currentEditingUid;
+    if (!empName) return showNotification("Selecione um colaborador", "error");
+    
+    askConfirmation(`Salvar escala de ${empName}?`, async () => {
+        try {
+            const user = state.scheduleData[empName];
+            const safeSchedule = user.schedule.map(v => (v===undefined||v===null||v==="")?"F":v);
+            const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
+            await setDoc(getCompanySubDoc("escalas", docId, "plantonistas", user.uid), { calculatedSchedule: safeSchedule }, { merge: true });
+            await addAuditLog("Edição de Escala", empName);
+            showNotification("Salvo com sucesso");
+            renderWeekendDuty();
+            renderDailyDashboard(); // <--- Atualiza os cards imediatamente
+        } catch(e) { showNotification(e.message, "error"); }
+    });
+}
+
+// --- FUNÇÕES AUXILIARES E HELPERS ---
 function renderEditToolbar() {
     const toolbar = document.getElementById('editToolbar');
     if(!toolbar) return;
@@ -329,10 +263,9 @@ function renderEditToolbar() {
     ];
     toolbar.innerHTML = tools.map(t => `<button onclick="window.setEditTool('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-white/5 border ${t.border} flex items-center gap-1.5 hover:bg-white/10 transition-all"><i class="fas ${t.icon} ${t.color} text-[9px]"></i><span class="text-[8px] font-bold text-white uppercase">${t.label}</span></button>`).join('');
 }
-
 function setEditTool(id) { activeTool = (id === 'null' || id === null) ? null : id; showNotification(activeTool ? `Ferramenta: ${activeTool}` : "Modo Automático"); }
-
-// Funções mantidas do original
+function initMonthSelector() { const sel = document.getElementById('monthSelect'); if (!sel) return; sel.innerHTML = availableMonths.map(m => { const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month; return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>${monthNames[m.month]} ${m.year}</option>`; }).join(''); sel.onchange = (e) => { const [y, m] = e.target.value.split('-'); state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) }; if (window.loadData) window.loadData(); else location.reload(); }; }
+export async function renderInviteWidget() { const container = document.getElementById('inviteWidgetContainer'); if (!container) return; container.innerHTML = ''; try { const q = query(getCompanyCollection("convites"), where("active", "==", true)); onSnapshot(q, (snap) => { const div = document.createElement('div'); div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in"; if (!snap.empty) { const inviteCode = snap.docs[0].id; const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`; div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between"><span><i class="fas fa-link text-emerald-400 mr-1"></i> Convite Ativo</span></h3><div class="flex gap-1 mb-2"><input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly><button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px]"><i class="fas fa-copy"></i></button></div><button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase transition-colors">Revogar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnCopyInvite').onclick = () => { navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value); showNotification("Link copiado!", "success"); }; document.getElementById('btnRevokeInvite').onclick = () => { askConfirmation("Revogar convite?", async () => { await updateDoc(getCompanyDoc("convites", inviteCode), { active: false }); showNotification("Revogado"); }); }; } else { div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-1">Novo Colaborador</h3><button id="btnGenerateInvite" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-[9px] font-bold uppercase shadow-lg transition-all active:scale-95">Gerar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnGenerateInvite').onclick = async () => { const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(); try { await setDoc(getCompanyDoc("convites", code), { createdBy: state.currentUser.uid, createdAt: serverTimestamp(), active: true }); showNotification("Gerado!"); } catch (e) { showNotification("Erro", "error"); } }; } }); } catch(e) {} }
 function openPromoteModal() { const modal = document.getElementById('promoteModal'); const userSelect = document.getElementById('promoteTargetUser'); const roleContainer = document.getElementById('roleOptionsContainer'); if(!userSelect || !modal) return; document.getElementById('selectedRoleKey').value = ""; userSelect.innerHTML = '<option value="">Selecione...</option>'; Object.values(state.scheduleData).sort((a,b)=>a.name.localeCompare(b.name)).forEach(user => { if (user.uid !== state.currentUser.uid) userSelect.innerHTML += `<option value="${user.uid}">${user.name} (${user.cargo || '-'})</option>`; }); roleContainer.innerHTML = ''; Object.entries(HIERARCHY).forEach(([key, config]) => { if (config.level <= 100) { const btn = document.createElement('div'); btn.className = `role-option cursor-pointer w-full p-2 mb-2 rounded border border-white/10 bg-white/5 flex items-center justify-between`; btn.onclick = (e) => window.selectRole(e, key); btn.innerHTML = `<span class="text-[10px] text-white font-bold">${config.label}</span><span class="text-[9px] text-gray-500">${config.level}</span>`; roleContainer.appendChild(btn); } }); modal.classList.remove('hidden'); }
 function selectRole(e, key) { document.querySelectorAll('.role-option').forEach(el => el.classList.remove('border-purple-500', 'bg-purple-500/10')); e.currentTarget.classList.add('border-purple-500', 'bg-purple-500/10'); document.getElementById('selectedRoleKey').value = key; }
 async function confirmPromotion() { const targetUid = document.getElementById('promoteTargetUser').value; const roleKey = document.getElementById('selectedRoleKey').value; if (!targetUid || !roleKey) return showNotification("Preencha todos os campos", "error"); const config = HIERARCHY[roleKey]; const targetUser = Object.values(state.scheduleData).find(u => u.uid === targetUid); askConfirmation(`Promover ${targetUser.name} para ${config.label}?`, async () => { try { await updateDoc(getCompanyDoc("users", targetUid), { cargo: config.label, role: config.role, level: config.level, promotedBy: state.currentUser.email }); document.getElementById('promoteModal').classList.add('hidden'); showNotification("Cargo Atualizado"); addAuditLog("Promoção", `${targetUser.name} -> ${config.label}`); } catch (e) { showNotification("Erro", "error"); } }); }
