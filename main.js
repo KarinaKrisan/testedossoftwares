@@ -123,7 +123,7 @@ function setInterfaceMode(mode) {
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea]";
         if(headerSuf) { headerSuf.className = "text-purple-500 text-[10px] align-top ml-1"; headerSuf.innerText = "ADMIN"; }
         
-        // --- ALTERAÇÃO AQUI: OCULTA O WIDGET DE FDS NO MODO ADMIN ---
+        // --- ALTERAÇÃO AQUI: Garante que o widget FDS desaparece no modo Admin ---
         document.getElementById('weekendDutyContainer')?.classList.add('hidden');
 
         Collab.destroyCollabUI(); 
