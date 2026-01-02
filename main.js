@@ -10,7 +10,7 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
-// Direciona o clique para a função nova do Admin ou para a do Colaborador
+// Direciona o clique para a função correta
 window.handleCellClick = (name, dayIndex) => { 
     if(state.isAdmin) Admin.handleAdminCellClick(name, dayIndex); 
     else Collab.handleCollabCellClick(name, dayIndex); 
@@ -77,7 +77,8 @@ async function loadData() {
         
         if (state.currentViewMode === 'admin') { 
             Admin.renderDailyDashboard(); 
-            // Não precisamos mais de populateEmployeeSelect aqui se a tela padrão for Dashboard
+            // Atualiza o select de colaboradores para garantir que tenha todos os nomes
+            Admin.populateEmployeeSelect();
         } else { 
             updatePersonalView(state.profile?.name); 
         }
@@ -127,9 +128,6 @@ function setInterfaceMode(mode) {
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea]";
         if(headerSuf) { headerSuf.className = "text-purple-500 text-[10px] align-top ml-1"; headerSuf.innerText = "ADMIN"; }
         
-        // Removemos a ocultação forçada do weekendDutyContainer aqui
-        // O controle de visibilidade agora é feito em Admin.switchAdminView
-
         Collab.destroyCollabUI(); 
         Admin.initAdminUI(); 
     } else {
