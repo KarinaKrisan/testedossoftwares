@@ -6,12 +6,12 @@ import { updatePersonalView, renderWeekendDuty, showNotification, updateDynamicM
 import { doc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-// --- GLOBAL EXPORTS (Crucial para o Admin Module) ---
+// --- GLOBAL EXPORTS (Crucial para o HTML encontrar as funções) ---
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
 window.handleCellClick = (name, dayIndex) => { state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex); };
-window.loadData = loadData; // <--- NOVA EXPORTAÇÃO: Permite que o dropdown recarregue os dados
+window.loadData = loadData; // Necessário para o seletor de mês
 
 // Logout Handler
 const performLogout = async () => { try { await signOut(auth); window.location.href = "start.html"; } catch (e) { console.error(e); } };
@@ -56,7 +56,6 @@ onAuthStateChanged(auth, async (user) => {
 
 // Load Data Function
 async function loadData() {
-    // Sincroniza o valor do dropdown com o estado atual, se ele existir
     const sel = document.getElementById('monthSelect');
     if(sel && state.selectedMonthObj) {
         sel.value = `${state.selectedMonthObj.year}-${state.selectedMonthObj.month}`;
@@ -71,8 +70,6 @@ async function loadData() {
         const detailsMap = {};
         usersSnap.forEach(doc => { detailsMap[doc.id] = doc.data(); });
         await processScheduleData(rosterSnap, detailsMap);
-        
-        // Remove a chamada antiga renderMonthSelector() pois agora usamos o Dropdown em initAdminUI
         
         if (state.currentViewMode === 'admin') { 
             Admin.renderDailyDashboard(); 
@@ -117,7 +114,6 @@ function buildUserObj(uid, profile, schedule) {
 
 function setInterfaceMode(mode) {
     state.currentViewMode = mode;
-    const btnDual = document.getElementById('btnDualMode'); // Verifique se existe no HTML, senão ignore
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
     
