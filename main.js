@@ -2,19 +2,22 @@
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
 import * as Admin from './admin-module.js';
 import * as Collab from './collab-module.js';
-import { updatePersonalView, switchSubTab, renderMonthSelector, renderWeekendDuty, showNotification, updateDynamicMenu } from './ui.js'; 
+import { updatePersonalView, renderWeekendDuty, showNotification, updateDynamicMenu } from './ui.js'; 
 import { doc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-window.switchSubTab = switchSubTab;
+// --- GLOBAL EXPORTS (Crucial para o Admin Module) ---
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
 window.handleCellClick = (name, dayIndex) => { state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex); };
+window.loadData = loadData; // <--- NOVA EXPORTAÇÃO: Permite que o dropdown recarregue os dados
 
+// Logout Handler
 const performLogout = async () => { try { await signOut(auth); window.location.href = "start.html"; } catch (e) { console.error(e); } };
 ['btnLogout', 'btnLogoutMobile'].forEach(id => { const btn = document.getElementById(id); if(btn) btn.onclick = performLogout; });
 
+// Auth Observer
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         state.currentUser = user;
@@ -37,13 +40,13 @@ onAuthStateChanged(auth, async (user) => {
                     return;
                 }
                 const newData = docSnap.data();
-                const oldLevel = state.profile?.level || 0;
                 state.profile = newData;
                 const myLevel = newData.level || 10;
                 state.isDualRole = myLevel >= 40; 
-                if (!isFirstLoad && myLevel > oldLevel) showNotification(`Permissões atualizadas: ${newData.cargo}`, "success");
+                
                 updateDynamicMenu();
                 if (state.isDualRole) setInterfaceMode('admin'); else setInterfaceMode('collab');
+                
                 loadData(); 
                 isFirstLoad = false;
             });
@@ -51,7 +54,14 @@ onAuthStateChanged(auth, async (user) => {
     } else { if (!window.location.href.includes("start.html")) window.location.href = "start.html"; }
 });
 
+// Load Data Function
 async function loadData() {
+    // Sincroniza o valor do dropdown com o estado atual, se ele existir
+    const sel = document.getElementById('monthSelect');
+    if(sel && state.selectedMonthObj) {
+        sel.value = `${state.selectedMonthObj.year}-${state.selectedMonthObj.month}`;
+    }
+
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month + 1).padStart(2, '0')}`;
     try {
         const [rosterSnap, usersSnap] = await Promise.all([
@@ -61,10 +71,15 @@ async function loadData() {
         const detailsMap = {};
         usersSnap.forEach(doc => { detailsMap[doc.id] = doc.data(); });
         await processScheduleData(rosterSnap, detailsMap);
-        renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
         
-        if (state.currentViewMode === 'admin') { Admin.renderDailyDashboard(); Admin.populateEmployeeSelect(); } 
-        else { updatePersonalView(state.profile?.name); }
+        // Remove a chamada antiga renderMonthSelector() pois agora usamos o Dropdown em initAdminUI
+        
+        if (state.currentViewMode === 'admin') { 
+            Admin.renderDailyDashboard(); 
+            Admin.populateEmployeeSelect(); 
+        } else { 
+            updatePersonalView(state.profile?.name); 
+        }
         renderWeekendDuty();
     } catch (error) { console.error(error); } finally { hideLoader(); }
 }
@@ -85,7 +100,6 @@ async function processScheduleData(querySnapshot, detailsMap) {
 
 function buildUserObj(uid, profile, schedule) {
     let safeSchedule = [];
-    // BLINDAGEM: Garante 'F' onde estiver vazio
     const days = 32; 
     if (Array.isArray(schedule)) {
         for(let i=0; i<days; i++) safeSchedule.push((schedule[i]===undefined||schedule[i]===null||schedule[i]==="") ? "F" : schedule[i]);
@@ -103,34 +117,27 @@ function buildUserObj(uid, profile, schedule) {
 
 function setInterfaceMode(mode) {
     state.currentViewMode = mode;
-    const btnDual = document.getElementById('btnDualMode');
+    const btnDual = document.getElementById('btnDualMode'); // Verifique se existe no HTML, senão ignore
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
-    if (state.isDualRole && btnDual) {
-        btnDual.classList.replace('hidden', 'flex');
-        btnDual.onclick = () => setInterfaceMode(state.currentViewMode === 'admin' ? 'collab' : 'admin');
-        document.getElementById('dualModeText').innerText = mode === 'admin' ? "Área Colaborador" : "Área Admin";
-        document.getElementById('dualModeIcon').className = mode === 'admin' ? "fas fa-user-astronaut text-[9px] text-gray-400" : "fas fa-shield-alt text-[9px] text-gray-400";
-    }
+    
+    // Configuração Visual Admin vs Collab
     if (mode === 'admin') {
         state.isAdmin = true; 
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea]";
         if(headerSuf) { headerSuf.className = "text-purple-500 text-[10px] align-top ml-1"; headerSuf.innerText = "ADMIN"; }
-        Collab.destroyCollabUI(); Admin.initAdminUI(); 
+        Collab.destroyCollabUI(); 
+        Admin.initAdminUI(); 
     } else {
         state.isAdmin = false; 
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#2563eb]";
         if(headerSuf) { headerSuf.className = "text-blue-500 text-[10px] align-top ml-1"; headerSuf.innerText = "COLLAB"; }
+        
         ['screenDaily', 'screenLogs', 'screenApprovals', 'adminTabNav', 'editToolbar', 'adminControls'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
         document.getElementById('screenEdit')?.classList.remove('hidden');
         document.getElementById('weekendDutyContainer')?.classList.remove('hidden');
+        
         Collab.initCollabUI();
         updatePersonalView(state.profile?.name || "Usuário");
     }
-}
-
-async function handleMonthChange(direction) {
-    const cur = availableMonths.findIndex(m => m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month);
-    const next = cur + direction;
-    if (next >= 0 && next < availableMonths.length) { state.selectedMonthObj = availableMonths[next]; await loadData(); }
 }
