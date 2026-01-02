@@ -27,9 +27,9 @@ export function initAdminUI() {
     renderEditToolbar(); 
     initApprovalsTab(); 
     renderInviteWidget(); 
-    initMonthSelector(); // <--- CORREÇÃO: Inicializa o dropdown de mês
+    initMonthSelector(); // Inicia o seletor de mês
     
-    // Inicia Dashboard
+    // Inicia Dashboard e garante atualização a cada minuto
     switchAdminView('Daily');
     
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
@@ -65,55 +65,100 @@ export function switchAdminView(view) {
     }
 }
 
-// --- DASHBOARD (Correção do Erro TypeError) ---
+// --- DASHBOARD (CARDs & TAGs) ---
 export function renderDailyDashboard() {
     const todayIndex = new Date().getDate() - 1; 
-    const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
     
+    // Definição dos Grupos e Cores
+    const definitions = {
+        'Ativo': { label: 'Trabalhando', color: 'emerald', icon: 'fa-briefcase' },
+        'Off': { label: 'Off/Turno', color: 'purple', icon: 'fa-moon' },
+        'Folga': { label: 'Folga', color: 'yellow', icon: 'fa-coffee' },
+        'Ferias': { label: 'Férias', color: 'red', icon: 'fa-plane' },
+        'Afastado': { label: 'Afastado', color: 'orange', icon: 'fa-user-injured' },
+        'Licenca': { label: 'Licença', color: 'pink', icon: 'fa-baby' }
+    };
+
+    const groups = { Ativo: [], Off: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
+    
+    // Processamento dos Dados
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
             const s = emp.schedule[todayIndex] || 'F';
-            let g = 'Encerrado';
-            if (s === 'T' || s === 'P' || s === 'MT' || s === 'N') g = 'Ativo'; 
-            if (['F','FS','FD'].includes(s)) g = 'Folga';
-            if (s === 'FE') g = 'Ferias';
-            if (s === 'A') g = 'Afastado';
-            if (s === 'LM') g = 'Licenca';
+            let g = 'Off'; // Default
+            
+            // Lógica de Agrupamento
+            if (['T', 'P', 'MT', 'N', 'D'].includes(s)) g = 'Ativo'; 
+            else if (['F', 'FS', 'FD'].includes(s)) g = 'Folga';
+            else if (s === 'FE') g = 'Ferias';
+            else if (s === 'A') g = 'Afastado';
+            else if (s === 'LM') g = 'Licenca';
+            
             if (groups[g]) groups[g].push({ ...emp, status: s });
         });
     }
 
-    const renderGroup = (k, l) => {
-        const count = document.getElementById(`count${k}`); 
-        if(count) count.innerText = l.length;
-        
-        const list = document.getElementById(`list${k}`);
-        if(list) {
-            let color = 'bg-gray-600';
-            if (k === 'Ativo') color = 'bg-emerald-500'; if (k === 'Folga') color = 'bg-yellow-500';
-            if (k === 'Ferias') color = 'bg-red-500'; if (k === 'Afastado') color = 'bg-orange-500';
-            if (k === 'Licenca') color = 'bg-pink-500'; if (k === 'Encerrado') color = 'bg-purple-500';
+    // 1. Renderizar CARDS (Estatísticas)
+    const statsContainer = document.getElementById('dailyStats');
+    if (statsContainer) {
+        statsContainer.innerHTML = Object.keys(definitions).map(key => {
+            const def = definitions[key];
+            const count = groups[key].length;
+            // Só mostra cards com gente ou os principais
+            return `
+            <div class="premium-glass p-3 rounded-xl border border-white/5 flex items-center justify-between group hover:bg-white/5 transition-all">
+                <div>
+                    <p class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-1">${def.label}</p>
+                    <p class="text-2xl font-bold text-white">${count}</p>
+                </div>
+                <div class="w-8 h-8 rounded-full bg-${def.color}-500/20 flex items-center justify-center text-${def.color}-400 group-hover:scale-110 transition-transform">
+                    <i class="fas ${def.icon} text-xs"></i>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    // 2. Renderizar LISTAS DETALHADAS (Grid abaixo dos cards)
+    const gridContainer = document.getElementById('dailyGrid');
+    if (gridContainer) {
+        gridContainer.innerHTML = Object.keys(definitions).map(key => {
+            const list = groups[key];
+            const def = definitions[key];
             
-            list.innerHTML = l.map(u => `
-                <div class="flex items-center justify-between bg-white/5 border border-white/5 rounded px-2 py-1 hover:bg-white/10 transition-colors group">
-                    <div class="flex items-center gap-2 overflow-hidden">
-                        <div class="w-1 h-3 rounded-full ${color}"></div>
-                        <span class="text-[9px] font-medium text-gray-300 group-hover:text-white truncate">${u.name}</span>
+            // Se a lista estiver vazia, não renderiza o bloco (exceto talvez 'Ativo' para feedback)
+            if (list.length === 0 && key !== 'Ativo') return '';
+
+            return `
+            <div class="premium-glass rounded-xl border border-white/5 overflow-hidden flex flex-col h-[200px]">
+                <div class="p-3 bg-white/5 border-b border-white/5 flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 rounded-full bg-${def.color}-500"></div>
+                        <span class="text-[10px] font-bold text-white uppercase tracking-widest">${def.label}</span>
                     </div>
-                    <span class="text-[8px] font-mono text-white/30 ml-2">${u.status}</span>
-                </div>`
-            ).join('');
-        }
-    };
-    Object.keys(groups).forEach(k => renderGroup(k, groups[k]));
+                    <span class="text-[9px] font-mono text-gray-500">${list.length}</span>
+                </div>
+                <div class="p-2 overflow-y-auto custom-scrollbar flex-1 space-y-1">
+                    ${list.map(u => `
+                        <div class="flex items-center justify-between p-2 rounded bg-white/5 hover:bg-white/10 border border-white/5 transition-colors">
+                            <span class="text-[10px] text-gray-200 font-medium truncate w-2/3">${u.name}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[8px] font-bold font-mono bg-${def.color}-500/20 text-${def.color}-400 border border-${def.color}-500/30">
+                                ${u.status}
+                            </span>
+                        </div>
+                    `).join('')}
+                    ${list.length === 0 ? '<p class="text-[9px] text-gray-600 text-center py-4 italic">Ninguém nesta categoria</p>' : ''}
+                </div>
+            </div>`;
+        }).join('');
+    }
 }
 
-// --- CORREÇÃO DO MENU "MÊS DE REFERÊNCIA" ---
+// --- SELETOR DE MÊS (Correção do Dropdown) ---
 function initMonthSelector() {
     const sel = document.getElementById('monthSelect');
     if (!sel) return;
     
-    // Popula o select com os meses disponíveis no config.js
+    // Importante: availableMonths vem do config.js
     sel.innerHTML = availableMonths.map(m => {
         const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month;
         return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>
@@ -121,21 +166,17 @@ function initMonthSelector() {
         </option>`;
     }).join('');
 
-    // Ao mudar, atualiza o estado e recarrega os dados
     sel.onchange = (e) => {
         const [y, m] = e.target.value.split('-');
         state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) };
         
-        // Se a função loadData estiver exposta no window (pelo main.js), usa ela. Senão, recarrega a página.
-        if (window.loadData) {
-            window.loadData();
-        } else {
-            window.location.reload();
-        }
+        // Recarrega dados via main.js
+        if (window.loadData) window.loadData();
+        else location.reload();
     };
 }
 
-// --- CONVITES (SaaS) ---
+// --- GESTÃO DE CONVITES ---
 export async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
     if (!container) return;
