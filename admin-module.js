@@ -65,27 +65,26 @@ export function switchAdminView(view) {
     }
 }
 
-// --- DASHBOARD COMPACTO (AQUI ESTÁ A MUDANÇA) ---
+// --- DASHBOARD ATUALIZADO (6 Cards) ---
 export function renderDailyDashboard() {
     const todayIndex = new Date().getDate() - 1; 
     
-    // Definição Completa dos Grupos
+    // Configuração dos 6 Cards Solicitados
     const definitions = {
-        'Ativo': { label: 'Trabalhando', color: 'emerald', icon: 'fa-briefcase' },
-        'Folga': { label: 'Folga', color: 'yellow', icon: 'fa-coffee' },
-        'Ferias': { label: 'Férias', color: 'red', icon: 'fa-plane' },
-        'Afastado': { label: 'Afastado', color: 'orange', icon: 'fa-user-injured' },
-        'Licenca': { label: 'Licença', color: 'pink', icon: 'fa-baby' },
-        'Off': { label: 'Off/Turno', color: 'purple', icon: 'fa-moon' }
+        'Ativo':    { label: 'Trabalhando', color: 'emerald', icon: 'fa-briefcase' },
+        'Off':      { label: 'Off',         color: 'gray',    icon: 'fa-power-off' },
+        'Folga':    { label: 'Folga',       color: 'yellow',  icon: 'fa-coffee' },
+        'Ferias':   { label: 'Férias',      color: 'red',     icon: 'fa-plane' },
+        'Afastado': { label: 'Atestado',    color: 'orange',  icon: 'fa-user-injured' },
+        'Licenca':  { label: 'Licença',     color: 'pink',    icon: 'fa-baby' }
     };
 
-    const groups = { Ativo: [], Folga: [], Ferias: [], Afastado: [], Licenca: [], Off: [] };
+    const groups = { Ativo: [], Off: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
     
-    // Processamento dos Dados
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
             const s = emp.schedule[todayIndex] || 'F';
-            let g = 'Off'; 
+            let g = 'Off'; // Padrão se não encontrar
             
             if (['T', 'P', 'MT', 'N', 'D'].includes(s)) g = 'Ativo'; 
             else if (['F', 'FS', 'FD'].includes(s)) g = 'Folga';
@@ -97,61 +96,42 @@ export function renderDailyDashboard() {
         });
     }
 
-    // 1. Renderizar STATS (Topo) - Grid de 6 colunas para caber tudo em uma linha (desktop)
+    // Ocultamos a barra de status superior (Stats) para focar apenas no Grid Principal
     const statsContainer = document.getElementById('dailyStats');
-    if (statsContainer) {
-        // Alterado para grid-cols-3 no mobile e grid-cols-6 no desktop
-        statsContainer.className = "grid grid-cols-3 lg:grid-cols-6 gap-2 mb-4";
-        
-        statsContainer.innerHTML = Object.keys(definitions).map(key => {
-            const def = definitions[key];
-            const count = groups[key].length;
-            
-            // Design mais compacto (text-xs, padding menor)
-            return `
-            <div class="premium-glass p-2 rounded-lg border border-white/5 flex flex-col items-center justify-center group hover:bg-white/5 transition-all">
-                <div class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mb-1">${def.label}</div>
-                <div class="flex items-center gap-2">
-                    <span class="text-xl font-bold text-white">${count}</span>
-                    <i class="fas ${def.icon} text-${def.color}-400 text-[10px]"></i>
-                </div>
-            </div>`;
-        }).join('');
-    }
+    if (statsContainer) statsContainer.innerHTML = ''; 
+    statsContainer.className = "hidden"; // Oculta container superior para limpar a tela
 
-    // 2. Renderizar LISTAS DETALHADAS (Principal) - Grid de 3 colunas
+    // Renderizar o Grid Principal (3 colunas x 2 linhas)
     const gridContainer = document.getElementById('dailyGrid');
     if (gridContainer) {
-        // Alterado para 3 colunas no desktop para caber Ativo, Folga e Outros lado a lado
-        gridContainer.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3";
+        gridContainer.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4";
         
         gridContainer.innerHTML = Object.keys(definitions).map(key => {
             const list = groups[key];
             const def = definitions[key];
             
-            // Se vazio, não mostra a lista para economizar espaço (exceto se for Ativo/Folga para referência)
-            if (list.length === 0 && !['Ativo', 'Folga', 'Ferias'].includes(key)) return '';
-
-            // Card da lista com altura reduzida (h-[180px])
+            // Removemos a verificação de lista vazia para exibir todos os cards solicitados
+            
             return `
-            <div class="premium-glass rounded-xl border border-white/5 overflow-hidden flex flex-col h-[180px]">
-                <div class="px-3 py-2 bg-white/5 border-b border-white/5 flex justify-between items-center">
+            <div class="premium-glass rounded-xl border border-white/5 overflow-hidden flex flex-col h-[220px]">
+                <div class="px-4 py-3 bg-white/5 border-b border-white/5 flex justify-between items-center">
                     <div class="flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-${def.color}-500 shadow-[0_0_5px_rgba(255,255,255,0.3)]"></div>
-                        <span class="text-[9px] font-bold text-white uppercase tracking-widest">${def.label}</span>
+                        <div class="w-2 h-2 rounded-full bg-${def.color}-500 shadow-[0_0_8px_rgba(255,255,255,0.3)]"></div>
+                        <span class="text-[10px] font-bold text-white uppercase tracking-widest">${def.label}</span>
                     </div>
-                    <span class="text-[9px] font-mono text-gray-500 bg-black/20 px-1.5 rounded">${list.length}</span>
+                    <span class="text-[10px] font-mono text-gray-400 bg-black/30 px-2 py-0.5 rounded border border-white/5">${list.length}</span>
                 </div>
-                <div class="p-1.5 overflow-y-auto custom-scrollbar flex-1 space-y-1">
+                
+                <div class="p-2 overflow-y-auto custom-scrollbar flex-1 space-y-1">
                     ${list.map(u => `
-                        <div class="flex items-center justify-between px-2 py-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group">
-                            <span class="text-[9px] text-gray-300 font-medium truncate w-[70%] group-hover:text-white">${u.name}</span>
-                            <span class="text-[8px] font-bold font-mono text-${def.color}-400">
+                        <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 transition-colors group">
+                            <span class="text-[10px] text-gray-300 font-medium truncate w-[70%] group-hover:text-white">${u.name}</span>
+                            <span class="text-[9px] font-bold font-mono text-${def.color}-400 opacity-70 group-hover:opacity-100">
                                 ${u.status}
                             </span>
                         </div>
                     `).join('')}
-                    ${list.length === 0 ? '<div class="h-full flex items-center justify-center"><p class="text-[8px] text-gray-700 uppercase">Vazio</p></div>' : ''}
+                    ${list.length === 0 ? `<div class="h-full flex flex-col items-center justify-center opacity-30"><i class="fas ${def.icon} text-2xl mb-2"></i><p class="text-[8px] uppercase">Vazio</p></div>` : ''}
                 </div>
             </div>`;
         }).join('');
@@ -162,14 +142,10 @@ export function renderDailyDashboard() {
 function initMonthSelector() {
     const sel = document.getElementById('monthSelect');
     if (!sel) return;
-    
     sel.innerHTML = availableMonths.map(m => {
         const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month;
-        return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>
-            ${monthNames[m.month]} ${m.year}
-        </option>`;
+        return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>${monthNames[m.month]} ${m.year}</option>`;
     }).join('');
-
     sel.onchange = (e) => {
         const [y, m] = e.target.value.split('-');
         state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) };
@@ -177,18 +153,16 @@ function initMonthSelector() {
     };
 }
 
-// --- GESTÃO DE CONVITES ---
+// --- CONVITES ---
 export async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
     if (!container) return;
-    container.innerHTML = '<div class="text-[9px] text-gray-500 animate-pulse p-4">Carregando convites...</div>';
-
+    container.innerHTML = ''; // Limpa estado anterior
     try {
         const q = query(getCompanyCollection("convites"), where("active", "==", true));
         onSnapshot(q, (snap) => {
             const div = document.createElement('div');
             div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in";
-
             if (!snap.empty) {
                 const inviteCode = snap.docs[0].id;
                 const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
@@ -205,7 +179,7 @@ export async function renderInviteWidget() {
                 };
             }
         });
-    } catch(e) { container.innerHTML = ''; }
+    } catch(e) {}
 }
 
 // --- EDIÇÃO E CARGOS ---
