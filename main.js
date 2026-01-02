@@ -6,12 +6,12 @@ import { updatePersonalView, renderWeekendDuty, showNotification, updateDynamicM
 import { doc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
-// --- GLOBAL EXPORTS (Crucial para o HTML encontrar as funções) ---
+// --- GLOBAL EXPORTS ---
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
 window.handleCellClick = (name, dayIndex) => { state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex); };
-window.loadData = loadData; // Necessário para o seletor de mês
+window.loadData = loadData; 
 
 // Logout Handler
 const performLogout = async () => { try { await signOut(auth); window.location.href = "start.html"; } catch (e) { console.error(e); } };
@@ -122,6 +122,10 @@ function setInterfaceMode(mode) {
         state.isAdmin = true; 
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea]";
         if(headerSuf) { headerSuf.className = "text-purple-500 text-[10px] align-top ml-1"; headerSuf.innerText = "ADMIN"; }
+        
+        // --- ALTERAÇÃO AQUI: OCULTA O WIDGET DE FDS NO MODO ADMIN ---
+        document.getElementById('weekendDutyContainer')?.classList.add('hidden');
+
         Collab.destroyCollabUI(); 
         Admin.initAdminUI(); 
     } else {
@@ -131,6 +135,8 @@ function setInterfaceMode(mode) {
         
         ['screenDaily', 'screenLogs', 'screenApprovals', 'adminTabNav', 'editToolbar', 'adminControls'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
         document.getElementById('screenEdit')?.classList.remove('hidden');
+        
+        // Exibe no modo Colaborador
         document.getElementById('weekendDutyContainer')?.classList.remove('hidden');
         
         Collab.initCollabUI();
