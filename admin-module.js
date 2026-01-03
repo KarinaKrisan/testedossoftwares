@@ -17,7 +17,7 @@ window.setEditTool = setEditTool;
 window.askConfirmation = askConfirmation;
 window.handleAdminCellClick = handleAdminCellClick;
 window.loadSelectedUser = loadSelectedUser;
-window.clearCurrentMonthSchedule = clearCurrentMonthSchedule; // Nova Função
+window.clearCurrentMonthSchedule = clearCurrentMonthSchedule; 
 
 // --- INICIALIZAÇÃO ---
 export function initAdminUI() {
@@ -60,14 +60,12 @@ export async function switchAdminView(view) {
     const fdsContainer = document.getElementById('weekendDutyContainer');
     const empWidget = document.getElementById('adminEmployeeWidget');
 
-    // --- MODO DASHBOARD ---
     if (view === 'Daily' || view === 'daily') {
         if(tb) tb.classList.add('hidden');
         if(fdsContainer) fdsContainer.classList.add('hidden');
         if(empWidget) empWidget.classList.add('hidden'); 
         
         const now = new Date();
-        // Se estiver vendo mês antigo, força o atual para os cards funcionarem
         if (state.selectedMonthObj.year !== now.getFullYear() || state.selectedMonthObj.month !== now.getMonth()) {
             state.selectedMonthObj = { year: now.getFullYear(), month: now.getMonth() };
             const sel = document.getElementById('monthSelect');
@@ -78,7 +76,6 @@ export async function switchAdminView(view) {
         }
     }
     
-    // --- MODO EDIÇÃO ---
     if (view === 'Edit' || view === 'edit') { 
         if(tb) tb.classList.remove('hidden');
         if(fdsContainer) fdsContainer.classList.remove('hidden');
@@ -99,43 +96,48 @@ export async function switchAdminView(view) {
     }
 }
 
-// --- FUNÇÃO NOVA: LIMPAR ESCALA (RESET) ---
+// --- FUNÇÃO DE EXCLUSÃO (CORRIGIDA) ---
 async function clearCurrentMonthSchedule() {
     const m = state.selectedMonthObj;
     const label = `${monthNames[m.month]}/${m.year}`;
     
-    askConfirmation(`ATENÇÃO: Deseja ZERAR a escala de ${label}? <br><span class='text-red-400 text-[9px]'>Isso definirá todos como FOLGA (F).</span>`, async () => {
+    // Modal de Confirmação Vermelho
+    askConfirmation(`
+        <span class="text-red-500 font-bold block text-lg mb-2">PERIGO!</span>
+        Deseja <strong class="text-white">EXCLUIR DEFINITIVAMENTE</strong> a escala de ${label}?
+        <br><br>
+        <span class='text-gray-400 text-[10px]'>Isso apagará todos os registros de turno deste mês no banco de dados.</span>
+    `, async () => {
         try {
             const batch = writeBatch(db);
             const docId = `${m.year}-${String(m.month+1).padStart(2,'0')}`;
             
-            // Para cada usuário na memória, define array de 'F'
+            // Itera sobre todos os usuários e DELETA o documento deles neste mês
             Object.values(state.scheduleData).forEach(user => {
-                const emptySchedule = Array(32).fill('F'); // 31 dias + margem
                 const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
-                batch.set(ref, { calculatedSchedule: emptySchedule }, { merge: true });
+                batch.delete(ref); // <--- AQUI ESTÁ A MUDANÇA (DELETE)
                 
-                // Atualiza localmente também
-                user.schedule = emptySchedule;
+                // Reseta visualmente para 'F' (padrão de vazio)
+                user.schedule = Array(32).fill('F');
             });
 
             await batch.commit();
-            await addAuditLog("Reset de Escala", `Zerou escala de ${label}`);
+            await addAuditLog("Exclusão de Escala", `Excluiu a escala de ${label}`);
             
-            showNotification(`Escala de ${label} reiniciada!`);
+            showNotification(`Escala de ${label} excluída com sucesso!`);
             
-            // Atualiza a tela
+            // Atualiza a interface
             if(currentEditingUid) renderIndividualEditor(currentEditingUid);
             renderWeekendDuty();
             
         } catch(e) {
             console.error(e);
-            showNotification("Erro ao limpar escala: " + e.message, "error");
+            showNotification("Erro ao excluir: " + e.message, "error");
         }
     });
 }
 
-// --- DASHBOARD (Correção: Card de Férias/Off em tempo real) ---
+// --- DASHBOARD ---
 export function renderDailyDashboard() {
     const todayIndex = new Date().getDate() - 1; 
     const now = new Date();
@@ -343,13 +345,12 @@ function renderEditToolbar() {
         { id: 'A', label: 'Af', icon: 'fa-user-injured', color: 'text-orange-400', border: 'border-orange-500/50' },
         { id: 'LM', label: 'LM', icon: 'fa-baby', color: 'text-pink-400', border: 'border-pink-500/50' }
     ];
-    // ADICIONA O BOTÃO DE LIMPAR (LIXEIRA) NO FINAL
     toolbar.innerHTML = tools.map(t => `<button onclick="window.setEditTool('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-white/5 border ${t.border} flex items-center gap-1.5 hover:bg-white/10 transition-all"><i class="fas ${t.icon} ${t.color} text-[9px]"></i><span class="text-[8px] font-bold text-white uppercase">${t.label}</span></button>`).join('');
     
-    // Botão Limpar
+    // BOTÃO EXCLUIR MÊS
     const btnClear = document.createElement('button');
     btnClear.className = "px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/50 flex items-center gap-1.5 hover:bg-red-500/20 transition-all ml-auto";
-    btnClear.innerHTML = `<i class="fas fa-trash text-red-400 text-[9px]"></i><span class="text-[8px] font-bold text-red-200 uppercase">Limpar Mês</span>`;
+    btnClear.innerHTML = `<i class="fas fa-trash text-red-400 text-[9px]"></i><span class="text-[8px] font-bold text-red-200 uppercase">Excluir Escala</span>`;
     btnClear.onclick = window.clearCurrentMonthSchedule;
     toolbar.appendChild(btnClear);
 }
