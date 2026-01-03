@@ -9,15 +9,25 @@ let mini = { y: new Date().getFullYear(), m: new Date().getMonth(), sel: null };
 export function initCollabUI() {
     ['adminControls', 'adminTabNav', 'editToolbar'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
     ['collabHeader', 'collabControls'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
+    
+    // Garante que o container de FDS esteja visível para o colaborador
+    const fds = document.getElementById('weekendDutyContainer');
+    if(fds) fds.classList.remove('hidden');
+
     const name = state.profile?.name || state.profile?.nome;
     if(name) {
-        document.getElementById('welcomeUser').textContent = `Olá, ${name.split(' ')[0]}`;
+        const welcome = document.getElementById('welcomeUser');
+        if(welcome) welcome.textContent = `Olá, ${name.split(' ')[0]}`;
+        
         const sel = document.getElementById('employeeSelect');
         if(sel) { sel.innerHTML = `<option>${name}</option>`; sel.value = name; sel.disabled = true; }
+        
         updatePersonalView(name);
-        initRequestsTab(); initInboxTab();    
+        initRequestsTab(); 
+        initInboxTab();    
     }
-    setupEvents(); renderMiniCal();
+    setupEvents(); 
+    renderMiniCal();
 }
 
 export function destroyCollabUI() {
@@ -26,16 +36,32 @@ export function destroyCollabUI() {
 }
 
 function setupEvents() {
-    const bNew = document.getElementById('btnNewRequestDynamic'); if(bNew) bNew.onclick = openModal;
-    const bSend = document.getElementById('btnSendRequest'); if(bSend) bSend.onclick = sendReq;
-    const tSel = document.getElementById('reqType'); if(tSel) tSel.onchange = handleType;
-    document.getElementById('datePickerTrigger').onclick = () => { document.getElementById('miniCalendarDropdown').classList.toggle('hidden'); renderMiniCal(); };
-    document.getElementById('miniPrev').onclick = () => { mini.m--; if(mini.m<0){mini.m=11;mini.y--}; renderMiniCal(); };
-    document.getElementById('miniNext').onclick = () => { mini.m++; if(mini.m>11){mini.m=0;mini.y++}; renderMiniCal(); };
+    // CORREÇÃO DO ERRO: VERIFICA SE O ELEMENTO EXISTE ANTES DE ATRIBUIR ONCLICK
+    const bNew = document.getElementById('btnNewRequestDynamic'); 
+    if(bNew) bNew.onclick = openModal;
+    
+    const bSend = document.getElementById('btnSendRequest'); 
+    if(bSend) bSend.onclick = sendReq;
+    
+    const tSel = document.getElementById('reqType'); 
+    if(tSel) tSel.onchange = handleType;
+    
+    const dtTrigger = document.getElementById('datePickerTrigger');
+    if(dtTrigger) dtTrigger.onclick = () => { 
+        document.getElementById('miniCalendarDropdown').classList.toggle('hidden'); 
+        renderMiniCal(); 
+    };
+    
+    const mPrev = document.getElementById('miniPrev');
+    if(mPrev) mPrev.onclick = () => { mini.m--; if(mini.m<0){mini.m=11;mini.y--}; renderMiniCal(); };
+    
+    const mNext = document.getElementById('miniNext');
+    if(mNext) mNext.onclick = () => { mini.m++; if(mini.m>11){mini.m=0;mini.y++}; renderMiniCal(); };
 }
 
 function renderMiniCal() {
     const grid = document.getElementById('miniCalendarGrid');
+    if(!grid) return;
     document.getElementById('miniMonthLabel').textContent = `${monthNames[mini.m]} ${mini.y}`;
     grid.innerHTML = '';
     const date = new Date(mini.y, mini.m, 1);
