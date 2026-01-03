@@ -16,7 +16,21 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-window.db = db; // Debug helper
+window.db = db; 
+
+// --- GERAÇÃO DINÂMICA DE DATAS ---
+const now = new Date();
+const currentYear = now.getFullYear();
+const currentMonth = now.getMonth(); // 0 = Janeiro
+
+// Gera lista de meses (Do mês passado até 12 meses à frente)
+export const availableMonths = [];
+const startView = new Date(currentYear, currentMonth - 1, 1); // Começa 1 mês atrás para histórico
+
+for(let i = 0; i < 14; i++) {
+    const d = new Date(startView.getFullYear(), startView.getMonth() + i, 1);
+    availableMonths.push({ year: d.getFullYear(), month: d.getMonth() });
+}
 
 export const state = {
     isAdmin: false,
@@ -26,7 +40,8 @@ export const state = {
     currentUser: null,
     profile: null, 
     scheduleData: {}, 
-    selectedMonthObj: { year: 2025, month: 11 }, 
+    // Define o mês inicial como o Mês Atual do sistema
+    selectedMonthObj: { year: currentYear, month: currentMonth }, 
     activeRequestType: 'troca_dia_trabalho',
     companyId: null 
 };
@@ -51,12 +66,6 @@ export function getCompanySubDoc(root, docId, sub, subDocId) {
 
 // --- CONSTANTES ---
 export const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
-export const availableMonths = (() => {
-    const list = [{ year: 2025, month: 11 }];
-    for (let m = 0; m <= 11; m++) list.push({ year: 2026, month: m });
-    return list;
-})();
 
 // --- UTILS ---
 export function hideLoader() {
