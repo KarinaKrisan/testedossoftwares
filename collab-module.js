@@ -27,7 +27,7 @@ export function destroyCollabUI() {
 }
 
 function setupEvents() {
-    // CORREÇÃO: VERIFICA SE O ELEMENTO EXISTE ANTES DE ATRIBUIR EVENTOS
+    // PROTEÇÃO CONTRA ERRO DE NULL
     const bNew = document.getElementById('btnNewRequestDynamic'); if (bNew) bNew.onclick = openModal;
     const bSend = document.getElementById('btnSendRequest'); if (bSend) bSend.onclick = sendReq;
     const tSel = document.getElementById('reqType'); if (tSel) tSel.onchange = handleType;
