@@ -10,7 +10,6 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
-// Direciona o clique para a função correta
 window.handleCellClick = (name, dayIndex) => { 
     if(state.isAdmin) Admin.handleAdminCellClick(name, dayIndex); 
     else Collab.handleCollabCellClick(name, dayIndex); 
@@ -77,7 +76,6 @@ async function loadData() {
         
         if (state.currentViewMode === 'admin') { 
             Admin.renderDailyDashboard(); 
-            // Atualiza o select de colaboradores para garantir que tenha todos os nomes
             Admin.populateEmployeeSelect();
         } else { 
             updatePersonalView(state.profile?.name); 
@@ -95,6 +93,7 @@ async function processScheduleData(querySnapshot, detailsMap) {
     });
     Object.keys(detailsMap).forEach(uid => {
         const u = detailsMap[uid];
+        // SE NÃO EXISTE DADO NO BANCO, buildUserObj CRIA VAZIO (F)
         if (u.active !== false && !Object.values(processed).some(p => p.uid === uid)) processed[u.name||u.nome] = buildUserObj(uid, u, []);
     });
     state.scheduleData = processed;
@@ -106,7 +105,7 @@ function buildUserObj(uid, profile, schedule) {
     if (Array.isArray(schedule)) {
         for(let i=0; i<days; i++) safeSchedule.push((schedule[i]===undefined||schedule[i]===null||schedule[i]==="") ? "F" : schedule[i]);
     } else {
-        safeSchedule = Array(days).fill("F");
+        safeSchedule = Array(days).fill("F"); // AQUI GARANTE QUE O MÊS NOVO É VAZIO
     }
     const userObj = {
         uid: uid, name: profile.name || profile.nome || "Usuário", role: profile.role || 'collaborator', level: profile.level || 10,
@@ -122,7 +121,6 @@ function setInterfaceMode(mode) {
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
     
-    // Configuração Visual Admin vs Collab
     if (mode === 'admin') {
         state.isAdmin = true; 
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea]";
