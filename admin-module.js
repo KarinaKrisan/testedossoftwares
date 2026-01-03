@@ -26,19 +26,16 @@ export function initAdminUI() {
     const btnSave = document.getElementById('btnSaveConfirm');
     if(btnSave) btnSave.onclick = confirmSaveToCloud;
     
-    // Inicializa componentes
     renderEditToolbar(); 
     initApprovalsTab(); 
     renderInviteWidget(); 
     initMonthSelector(); 
-    
-    // Garante que o seletor de funcionário seja criado na área de admin
     renderEmployeeSelectorWidget(); 
 
-    // Inicia na Dashboard
     switchAdminView('Daily');
     
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
+    // Atualiza a cada 60s para mudar status de quem entra/sai
     dailyUpdateInterval = setInterval(() => { 
         const screen = document.getElementById('screenDaily');
         if (screen && !screen.classList.contains('hidden')) renderDailyDashboard(); 
@@ -48,7 +45,6 @@ export function initAdminUI() {
 export function switchAdminView(view) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
-    // Alterna visibilidade das telas
     ['Daily', 'Edit', 'Approvals', 'Logs'].forEach(s => {
         const screen = document.getElementById(`screen${s}`);
         if(screen) screen.classList.toggle('hidden', s.toLowerCase() !== view.toLowerCase());
@@ -62,30 +58,24 @@ export function switchAdminView(view) {
     
     const tb = document.getElementById('editToolbar');
     const fdsContainer = document.getElementById('weekendDutyContainer');
-    const empWidget = document.getElementById('adminEmployeeWidget'); // O container do select que vamos criar
+    const empWidget = document.getElementById('adminEmployeeWidget');
 
-    // Configuração Específica por Tela
     if (view === 'Daily' || view === 'daily') {
         if(tb) tb.classList.add('hidden');
         if(fdsContainer) fdsContainer.classList.add('hidden');
-        if(empWidget) empWidget.classList.add('hidden'); // Esconde select na dashboard
+        if(empWidget) empWidget.classList.add('hidden'); 
         renderDailyDashboard();
     }
     
     if (view === 'Edit' || view === 'edit') { 
         if(tb) tb.classList.remove('hidden');
         if(fdsContainer) fdsContainer.classList.remove('hidden');
-        if(empWidget) empWidget.classList.remove('hidden'); // Mostra select na edição
+        if(empWidget) empWidget.classList.remove('hidden');
         
-        populateEmployeeSelect(); // Preenche a lista
-        
-        // Verifica se já tem alguém selecionado
+        populateEmployeeSelect();
         const select = document.getElementById('employeeSelect');
-        if(select && select.value) {
-            loadSelectedUser(select.value);
-        } else {
-            document.getElementById('calendarContainer').innerHTML = '<div class="premium-glass p-10 text-center text-gray-500 text-xs uppercase tracking-widest border border-white/5 rounded-xl"><i class="fas fa-user-edit text-3xl mb-3 text-purple-400"></i><br>Selecione um colaborador na barra lateral</div>';
-        }
+        if(select && select.value) { loadSelectedUser(select.value); } 
+        else { document.getElementById('calendarContainer').innerHTML = '<div class="premium-glass p-10 text-center text-gray-500 text-xs uppercase tracking-widest border border-white/5 rounded-xl"><i class="fas fa-user-edit text-3xl mb-3 text-purple-400"></i><br>Selecione um colaborador na barra lateral</div>'; }
         
         renderWeekendDuty(); 
     }
@@ -97,157 +87,12 @@ export function switchAdminView(view) {
     }
 }
 
-// --- FUNÇÃO NOVA: CRIA O SELETOR NA BARRA LATERAL ADMIN ---
-function renderEmployeeSelectorWidget() {
-    const container = document.getElementById('adminControls');
-    if (!container) return;
-
-    // Se já existe, não recria
-    if (document.getElementById('adminEmployeeWidget')) return;
-
-    const widget = document.createElement('div');
-    widget.id = 'adminEmployeeWidget';
-    widget.className = "premium-glass p-4 rounded-2xl border border-white/10 hidden animate-fade-in mb-4"; // Hidden por padrão, switchAdminView mostra
-    widget.innerHTML = `
-        <label class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Editar Colaborador</label>
-        <select id="employeeSelect" class="w-full bg-black/40 border border-white/10 text-white text-xs p-3 rounded-xl outline-none focus:border-purple-500 transition-all cursor-pointer">
-            <option value="">Carregando...</option>
-        </select>
-    `;
-    
-    // Insere antes do Mês de Referência ou no topo
-    container.insertBefore(widget, container.firstChild);
-}
-
-export function populateEmployeeSelect() {
-    const s = document.getElementById('employeeSelect');
-    if(!s) return;
-    
-    const currentValue = s.value;
-    s.innerHTML = '<option value="">Selecione...</option>'; 
-    
-    if(state.scheduleData) {
-        Object.keys(state.scheduleData).sort().forEach(n => {
-            const user = state.scheduleData[n];
-            if (user.level < 100) { // Filtra CEO para segurança básica
-                s.innerHTML += `<option value="${n}">${n}</option>`;
-            }
-        });
-    }
-    
-    if(currentValue && state.scheduleData[currentValue]) s.value = currentValue;
-    
-    s.onchange = () => loadSelectedUser(s.value);
-}
-
-function loadSelectedUser(name) {
-    currentEditingUid = name;
-    if(!name) { 
-        document.getElementById('calendarContainer').innerHTML = '<div class="premium-glass p-10 text-center text-gray-500 text-xs uppercase tracking-widest border border-white/5 rounded-xl"><i class="fas fa-user-edit text-3xl mb-3 text-purple-400"></i><br>Selecione um colaborador na barra lateral</div>'; 
-        return; 
-    }
-    renderIndividualEditor(name);
-}
-
-function renderIndividualEditor(name) {
-    const container = document.getElementById('calendarContainer');
-    const user = state.scheduleData[name];
-    if (!container || !user) return;
-    
-    const days = getDaysInMonth(state.selectedMonthObj.year, state.selectedMonthObj.month);
-    
-    let html = `
-    <div class="premium-glass p-4 rounded-xl border border-white/5 mb-4 animate-fade-in">
-        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
-            <div>
-                <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full ${user.active !== false ? 'bg-emerald-500' : 'bg-red-500'}"></div>
-                    ${user.name}
-                </h2>
-                <p class="text-[10px] text-gray-400 uppercase tracking-widest pl-5">${user.cargo || 'Colaborador'}</p>
-            </div>
-            <div class="text-right"><span class="text-[9px] font-mono text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20">EDITION MODE</span></div>
-        </div>
-        <div class="grid grid-cols-7 gap-1 md:gap-2">
-            ${['DOM','SEG','TER','QUA','QUI','SEX','SÁB'].map(d => `<div class="text-center text-[9px] font-bold text-gray-500 uppercase py-1">${d}</div>`).join('')}
-    `;
-    
-    // Espaços vazios antes do dia 1
-    for (let i = 0; i < days[0].getDay(); i++) html += `<div class="bg-transparent"></div>`;
-    
-    days.forEach((day, i) => {
-        const val = user.schedule[i] || 'F';
-        let bgClass = 'bg-white/5 border-white/5 text-gray-400';
-        let icon = '';
-
-        if(val === 'T') { bgClass = 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 font-bold'; icon='<i class="fas fa-briefcase text-[8px] opacity-50"></i>'; }
-        if(val === 'F') { bgClass = 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'; icon='<i class="fas fa-coffee text-[8px] opacity-50"></i>'; }
-        if(['FS','FD'].includes(val)) { bgClass = 'bg-blue-500/20 border-blue-500/50 text-blue-400 font-bold'; icon='<i class="fas fa-sun text-[8px] opacity-50"></i>'; }
-        if(val === 'FE') { bgClass = 'bg-red-500/20 border-red-500/50 text-red-400 font-bold'; icon='<i class="fas fa-plane text-[8px] opacity-50"></i>'; }
-        if(val === 'A') { bgClass = 'bg-orange-500/20 border-orange-500/50 text-orange-400 font-bold'; icon='<i class="fas fa-user-injured text-[8px] opacity-50"></i>'; }
-        if(val === 'LM') { bgClass = 'bg-pink-500/20 border-pink-500/50 text-pink-400 font-bold'; icon='<i class="fas fa-baby text-[8px] opacity-50"></i>'; }
-        
-        const isToday = day.getDate() === new Date().getDate() && day.getMonth() === new Date().getMonth();
-        const todayBorder = isToday ? 'ring-1 ring-white' : '';
-
-        html += `
-            <div onclick="window.handleAdminCellClick('${name}', ${i})" 
-                 class="aspect-square rounded-lg border ${bgClass} ${todayBorder} flex flex-col items-center justify-center cursor-pointer hover:scale-105 hover:brightness-125 transition-all select-none relative group">
-                <span class="text-[10px] md:text-sm">${day.getDate()}</span>
-                <span class="text-[9px] md:text-xs font-bold mt-1">${val}</span>
-                <div class="absolute top-1 right-1 hidden md:block">${icon}</div>
-            </div>`;
-    });
-    
-    html += `</div>
-        <div class="mt-4 pt-4 border-t border-white/5 flex justify-end">
-            <button id="btnSaveIndividual" class="bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-6 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 transition-transform active:scale-95">
-                <i class="fas fa-save"></i> Salvar Alterações
-            </button>
-        </div>
-    </div>`;
-    
-    container.innerHTML = html;
-    document.getElementById('btnSaveIndividual').onclick = confirmSaveToCloud;
-}
-
-export function handleAdminCellClick(name, i) {
-    const user = state.scheduleData[name];
-    if(!user) return;
-    const seq = ['T', 'F', 'FS', 'FD', 'FE', 'A', 'LM'];
-    const currentVal = user.schedule[i] || 'F';
-    // Aplica ferramenta selecionada ou rotaciona
-    user.schedule[i] = activeTool !== null ? activeTool : seq[(seq.indexOf(currentVal) + 1) % seq.length];
-    
-    renderIndividualEditor(name);
-}
-
-async function confirmSaveToCloud() {
-    const select = document.getElementById('employeeSelect');
-    const empName = select ? select.value : currentEditingUid;
-
-    if (!empName) return showNotification("Selecione um colaborador", "error");
-    
-    askConfirmation(`Salvar escala de ${empName}?`, async () => {
-        try {
-            const user = state.scheduleData[empName];
-            const safeSchedule = user.schedule.map(v => (v===undefined||v===null||v==="")?"F":v);
-            const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
-            
-            await setDoc(getCompanySubDoc("escalas", docId, "plantonistas", user.uid), { calculatedSchedule: safeSchedule }, { merge: true });
-            await addAuditLog("Edição de Escala", empName);
-            
-            showNotification("Salvo com sucesso");
-            renderWeekendDuty();
-            renderDailyDashboard();
-        } catch(e) { showNotification(e.message, "error"); }
-    });
-}
-
-// --- DASHBOARD (6 Cards) ---
+// --- DASHBOARD INTELIGENTE (VERIFICA HORÁRIO) ---
 export function renderDailyDashboard() {
     const todayIndex = new Date().getDate() - 1; 
-    
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes(); // Hora atual em minutos
+
     const definitions = {
         'Ativo':    { label: 'Trabalhando', color: 'emerald', icon: 'fa-briefcase' },
         'Folga':    { label: 'Folga',       color: 'yellow',  icon: 'fa-coffee' },
@@ -263,15 +108,26 @@ export function renderDailyDashboard() {
         Object.values(state.scheduleData).forEach(emp => {
             const s = emp.schedule[todayIndex] || 'F';
             let g = 'Off'; 
-            
-            // FS e FD contam como TRABALHO
-            if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) g = 'Ativo'; 
+            let statusText = s;
+
+            // Lógica Base
+            if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) {
+                // VERIFICAÇÃO DE HORÁRIO
+                const isOnShift = checkIsWorkingNow(emp.horario, currentMinutes);
+                
+                if (isOnShift) {
+                    g = 'Ativo';
+                } else {
+                    g = 'Off'; // Se está escalado mas fora do horário, vai para Off
+                    statusText = 'Fora de Turno';
+                }
+            } 
             else if (['F'].includes(s)) g = 'Folga';
             else if (s === 'FE') g = 'Ferias';
             else if (s === 'A') g = 'Afastado';
             else if (s === 'LM') g = 'Licenca';
             
-            if (groups[g]) groups[g].push({ ...emp, status: s });
+            if (groups[g]) groups[g].push({ ...emp, status: statusText });
         });
     }
 
@@ -308,6 +164,144 @@ export function renderDailyDashboard() {
             </div>`;
         }).join('');
     }
+}
+
+// --- FUNÇÃO AUXILIAR: VALIDA HORÁRIO ---
+function checkIsWorkingNow(horarioString, currentMinutes) {
+    if (!horarioString) return true; // Se não tiver horário definido, assume que trabalha o dia todo (fallback)
+    
+    // Formato esperado: "08:00 às 17:00"
+    try {
+        const parts = horarioString.toLowerCase().split('às');
+        if (parts.length !== 2) return true;
+
+        const startParts = parts[0].trim().split(':');
+        const endParts = parts[1].trim().split(':');
+
+        const startMin = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+        const endMin = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+
+        // Caso simples: Começa e termina no mesmo dia (08:00 -> 17:00)
+        if (endMin > startMin) {
+            return currentMinutes >= startMin && currentMinutes < endMin;
+        } 
+        // Caso noturno: Vira o dia (22:00 -> 06:00)
+        else {
+            return currentMinutes >= startMin || currentMinutes < endMin;
+        }
+    } catch (e) {
+        console.warn("Erro ao processar horário:", horarioString);
+        return true; 
+    }
+}
+
+// --- SELETOR DE FUNCIONÁRIO ---
+function renderEmployeeSelectorWidget() {
+    const container = document.getElementById('adminControls');
+    if (!container || document.getElementById('adminEmployeeWidget')) return;
+
+    const widget = document.createElement('div');
+    widget.id = 'adminEmployeeWidget';
+    widget.className = "premium-glass p-4 rounded-2xl border border-white/10 hidden animate-fade-in mb-4"; 
+    widget.innerHTML = `
+        <label class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Editar Colaborador</label>
+        <select id="employeeSelect" class="w-full bg-black/40 border border-white/10 text-white text-xs p-3 rounded-xl outline-none focus:border-purple-500 transition-all cursor-pointer">
+            <option value="">Carregando...</option>
+        </select>
+    `;
+    container.insertBefore(widget, container.firstChild);
+}
+
+export function populateEmployeeSelect() {
+    const s = document.getElementById('employeeSelect');
+    if(!s) return;
+    const currentValue = s.value;
+    s.innerHTML = '<option value="">Selecione...</option>'; 
+    if(state.scheduleData) {
+        Object.keys(state.scheduleData).sort().forEach(n => {
+            const user = state.scheduleData[n];
+            if (user.level < 100) s.innerHTML += `<option value="${n}">${n}</option>`;
+        });
+    }
+    if(currentValue && state.scheduleData[currentValue]) s.value = currentValue;
+    s.onchange = () => loadSelectedUser(s.value);
+}
+
+function loadSelectedUser(name) {
+    currentEditingUid = name;
+    if(!name) { document.getElementById('calendarContainer').innerHTML = '<div class="premium-glass p-10 text-center text-gray-500 text-xs uppercase tracking-widest border border-white/5 rounded-xl"><i class="fas fa-user-edit text-3xl mb-3 text-purple-400"></i><br>Selecione um colaborador na barra lateral</div>'; return; }
+    renderIndividualEditor(name);
+}
+
+function renderIndividualEditor(name) {
+    const container = document.getElementById('calendarContainer');
+    const user = state.scheduleData[name];
+    if (!container || !user) return;
+    const days = getDaysInMonth(state.selectedMonthObj.year, state.selectedMonthObj.month);
+    
+    let html = `
+    <div class="premium-glass p-4 rounded-xl border border-white/5 mb-4 animate-fade-in">
+        <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+            <div>
+                <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                    <div class="w-3 h-3 rounded-full ${user.active !== false ? 'bg-emerald-500' : 'bg-red-500'}"></div>
+                    ${user.name}
+                </h2>
+                <p class="text-[10px] text-gray-400 uppercase tracking-widest pl-5">${user.cargo || 'Colaborador'}</p>
+            </div>
+            <div class="text-right"><span class="text-[9px] font-mono text-purple-400 bg-purple-500/10 px-2 py-1 rounded border border-purple-500/20">EDITION MODE</span></div>
+        </div>
+        <div class="grid grid-cols-7 gap-1 md:gap-2">
+            ${['DOM','SEG','TER','QUA','QUI','SEX','SÁB'].map(d => `<div class="text-center text-[9px] font-bold text-gray-500 uppercase py-1">${d}</div>`).join('')}
+    `;
+    for (let i = 0; i < days[0].getDay(); i++) html += `<div class="bg-transparent"></div>`;
+    days.forEach((day, i) => {
+        const val = user.schedule[i] || 'F';
+        let bgClass = 'bg-white/5 border-white/5 text-gray-400';
+        let icon = '';
+        if(val === 'T') { bgClass = 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400 font-bold'; icon='<i class="fas fa-briefcase text-[8px] opacity-50"></i>'; }
+        if(val === 'F') { bgClass = 'bg-yellow-500/10 border-yellow-500/30 text-yellow-500'; icon='<i class="fas fa-coffee text-[8px] opacity-50"></i>'; }
+        if(['FS','FD'].includes(val)) { bgClass = 'bg-blue-500/20 border-blue-500/50 text-blue-400 font-bold'; icon='<i class="fas fa-sun text-[8px] opacity-50"></i>'; }
+        if(val === 'FE') { bgClass = 'bg-red-500/20 border-red-500/50 text-red-400 font-bold'; icon='<i class="fas fa-plane text-[8px] opacity-50"></i>'; }
+        if(val === 'A') { bgClass = 'bg-orange-500/20 border-orange-500/50 text-orange-400 font-bold'; icon='<i class="fas fa-user-injured text-[8px] opacity-50"></i>'; }
+        if(val === 'LM') { bgClass = 'bg-pink-500/20 border-pink-500/50 text-pink-400 font-bold'; icon='<i class="fas fa-baby text-[8px] opacity-50"></i>'; }
+        
+        const isToday = day.getDate() === new Date().getDate() && day.getMonth() === new Date().getMonth();
+        const todayBorder = isToday ? 'ring-1 ring-white' : '';
+
+        html += `<div onclick="window.handleAdminCellClick('${name}', ${i})" class="aspect-square rounded-lg border ${bgClass} ${todayBorder} flex flex-col items-center justify-center cursor-pointer hover:scale-105 hover:brightness-125 transition-all select-none relative group"><span class="text-[10px] md:text-sm">${day.getDate()}</span><span class="text-[9px] md:text-xs font-bold mt-1">${val}</span><div class="absolute top-1 right-1 hidden md:block">${icon}</div></div>`;
+    });
+    html += `</div><div class="mt-4 pt-4 border-t border-white/5 flex justify-end"><button id="btnSaveIndividual" class="bg-emerald-600 hover:bg-emerald-500 text-white py-2 px-6 rounded-lg text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 transition-transform active:scale-95"><i class="fas fa-save"></i> Salvar Alterações</button></div></div>`;
+    container.innerHTML = html;
+    document.getElementById('btnSaveIndividual').onclick = confirmSaveToCloud;
+}
+
+export function handleAdminCellClick(name, i) {
+    const user = state.scheduleData[name];
+    if(!user) return;
+    const seq = ['T', 'F', 'FS', 'FD', 'FE', 'A', 'LM'];
+    const currentVal = user.schedule[i] || 'F';
+    user.schedule[i] = activeTool !== null ? activeTool : seq[(seq.indexOf(currentVal) + 1) % seq.length];
+    renderIndividualEditor(name);
+}
+
+async function confirmSaveToCloud() {
+    const select = document.getElementById('employeeSelect');
+    const empName = select ? select.value : currentEditingUid;
+    if (!empName) return showNotification("Selecione um colaborador", "error");
+    
+    askConfirmation(`Salvar escala de ${empName}?`, async () => {
+        try {
+            const user = state.scheduleData[empName];
+            const safeSchedule = user.schedule.map(v => (v===undefined||v===null||v==="")?"F":v);
+            const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
+            await setDoc(getCompanySubDoc("escalas", docId, "plantonistas", user.uid), { calculatedSchedule: safeSchedule }, { merge: true });
+            await addAuditLog("Edição de Escala", empName);
+            showNotification("Salvo com sucesso");
+            renderWeekendDuty();
+            renderDailyDashboard();
+        } catch(e) { showNotification(e.message, "error"); }
+    });
 }
 
 // --- FUNÇÕES AUXILIARES ---
