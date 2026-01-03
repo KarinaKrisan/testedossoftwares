@@ -2,19 +2,17 @@
 import { db, auth, state, hideLoader, availableMonths, getCompanyCollection, getCompanyDoc, getCompanySubCollection } from './config.js';
 import * as Admin from './admin-module.js';
 import * as Collab from './collab-module.js';
-import { updatePersonalView, renderWeekendDuty, showNotification, updateDynamicMenu } from './ui.js'; 
+import { updatePersonalView, switchSubTab, renderMonthSelector, renderWeekendDuty, showNotification, updateDynamicMenu } from './ui.js'; 
 import { doc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
 // --- GLOBAL EXPORTS ---
+window.switchSubTab = switchSubTab;
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
-window.handleCellClick = (name, dayIndex) => { 
-    if(state.isAdmin) Admin.handleAdminCellClick(name, dayIndex); 
-    else Collab.handleCollabCellClick(name, dayIndex); 
-};
-window.loadData = loadData; 
+window.handleCellClick = (name, dayIndex) => { state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex); };
+window.loadData = loadData;
 
 // Logout Handler
 const performLogout = async () => { try { await signOut(auth); window.location.href = "start.html"; } catch (e) { console.error(e); } };
@@ -43,23 +41,24 @@ onAuthStateChanged(auth, async (user) => {
                     return;
                 }
                 const newData = docSnap.data();
+                const oldLevel = state.profile?.level || 0;
                 state.profile = newData;
                 const myLevel = newData.level || 10;
                 
-                // --- ALTERAÇÃO AQUI: Qualquer nível ACIMA de 10 tem dupla função ---
+                // --- ALTERAÇÃO AQUI: Nível > 10 habilita Dupla Função ---
                 state.isDualRole = myLevel > 10; 
                 
+                if (!isFirstLoad && myLevel > oldLevel) showNotification(`Permissões atualizadas: ${newData.cargo}`, "success");
                 updateDynamicMenu();
                 
-                // Na primeira carga, se for dual role e estiver na URL de admin, vai pro admin.
-                // Caso contrário, padrão é collab.
-                if (isFirstLoad) {
-                    // Mantém onde estava se der refresh, ou padrão collab
-                    setInterfaceMode('collab');
+                // Lógica de redirecionamento inicial
+                if (state.isDualRole) {
+                    // Se for admin/líder, mas estiver carregando pela primeira vez, 
+                    // ou mantém onde estava ou define um padrão. 
+                    // Aqui definimos 'admin' como padrão para cargos altos, ou 'collab' se preferir.
+                    if(isFirstLoad) setInterfaceMode('admin'); 
                 } else {
-                    // Atualização em tempo real (ex: foi promovido agora)
-                    const btnDual = document.getElementById('btnDualMode');
-                    if (state.isDualRole && btnDual) btnDual.classList.remove('hidden');
+                    setInterfaceMode('collab');
                 }
                 
                 loadData(); 
@@ -71,11 +70,6 @@ onAuthStateChanged(auth, async (user) => {
 
 // Load Data Function
 async function loadData() {
-    const sel = document.getElementById('monthSelect');
-    if(sel && state.selectedMonthObj) {
-        sel.value = `${state.selectedMonthObj.year}-${state.selectedMonthObj.month}`;
-    }
-
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month + 1).padStart(2, '0')}`;
     try {
         const [rosterSnap, usersSnap] = await Promise.all([
@@ -86,9 +80,14 @@ async function loadData() {
         usersSnap.forEach(doc => { detailsMap[doc.id] = doc.data(); });
         await processScheduleData(rosterSnap, detailsMap);
         
+        // Renderiza seletores se necessário (dependendo do ui.js)
+        if(typeof renderMonthSelector === 'function') {
+             renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
+        }
+        
         if (state.currentViewMode === 'admin') { 
             Admin.renderDailyDashboard(); 
-            Admin.populateEmployeeSelect();
+            Admin.populateEmployeeSelect(); 
         } else { 
             updatePersonalView(state.profile?.name); 
         }
@@ -129,18 +128,20 @@ function buildUserObj(uid, profile, schedule) {
 
 function setInterfaceMode(mode) {
     state.currentViewMode = mode;
+    const btnDual = document.getElementById('btnDualMode');
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
-    const btnDual = document.getElementById('btnDualMode');
-
-    // Configura Botão de Troca
+    
+    // Configura Botão de Troca (Visível se isDualRole for true)
     if (state.isDualRole && btnDual) {
         btnDual.classList.remove('hidden');
-        btnDual.style.display = 'flex';
+        btnDual.style.display = 'flex'; // Garante display flex
+        
         btnDual.onclick = () => setInterfaceMode(state.currentViewMode === 'admin' ? 'collab' : 'admin');
         
         const dualText = document.getElementById('dualModeText');
         const dualIcon = document.getElementById('dualModeIcon');
+        
         if (mode === 'admin') {
             if(dualText) dualText.innerText = "Área Colaborador";
             if(dualIcon) dualIcon.className = "fas fa-user-astronaut text-[9px] text-gray-400 group-hover:text-blue-400";
@@ -152,6 +153,7 @@ function setInterfaceMode(mode) {
         btnDual.classList.add('hidden');
     }
     
+    // Troca de Interface
     if (mode === 'admin') {
         state.isAdmin = true; 
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea]";
@@ -174,4 +176,10 @@ function setInterfaceMode(mode) {
         Collab.initCollabUI();
         updatePersonalView(state.profile?.name || "Usuário");
     }
+}
+
+async function handleMonthChange(direction) {
+    const cur = availableMonths.findIndex(m => m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month);
+    const next = cur + direction;
+    if (next >= 0 && next < availableMonths.length) { state.selectedMonthObj = availableMonths[next]; await loadData(); }
 }
