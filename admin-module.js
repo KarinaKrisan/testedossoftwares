@@ -315,28 +315,6 @@ async function confirmSaveToCloud() {
     });
 }
 
-// --- FUNÇÃO DE EXCLUSÃO (Limpar Mês) ---
-async function clearCurrentMonthSchedule() {
-    const m = state.selectedMonthObj;
-    const label = `${monthNames[m.month]}/${m.year}`;
-    askConfirmation(`Deseja EXCLUIR toda a escala de ${label}?`, async () => {
-        try {
-            const batch = writeBatch(db);
-            const docId = `${m.year}-${String(m.month+1).padStart(2,'0')}`;
-            Object.values(state.scheduleData).forEach(user => {
-                const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
-                batch.delete(ref);
-                user.schedule = Array(32).fill('F');
-            });
-            await batch.commit();
-            await addAuditLog("Exclusão de Escala", `Excluiu ${label}`);
-            showNotification(`Escala excluída!`);
-            if(currentEditingUid) renderIndividualEditor(currentEditingUid);
-            renderWeekendDuty();
-        } catch(e) { showNotification("Erro: " + e.message, "error"); }
-    });
-}
-
 function renderEditToolbar() {
     const toolbar = document.getElementById('editToolbar');
     if(!toolbar) return;
