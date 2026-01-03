@@ -35,7 +35,6 @@ export function initAdminUI() {
     switchAdminView('Daily');
     
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
-    // Atualiza a cada 60s para mudar status de quem entra/sai
     dailyUpdateInterval = setInterval(() => { 
         const screen = document.getElementById('screenDaily');
         if (screen && !screen.classList.contains('hidden')) renderDailyDashboard(); 
@@ -60,13 +59,26 @@ export function switchAdminView(view) {
     const fdsContainer = document.getElementById('weekendDutyContainer');
     const empWidget = document.getElementById('adminEmployeeWidget');
 
+    // --- MODO DASHBOARD: FORÇA DATA ATUAL ---
     if (view === 'Daily' || view === 'daily') {
         if(tb) tb.classList.add('hidden');
         if(fdsContainer) fdsContainer.classList.add('hidden');
         if(empWidget) empWidget.classList.add('hidden'); 
-        renderDailyDashboard();
+        
+        // Se estiver vendo um mês antigo, volta para o atual automaticamente
+        const now = new Date();
+        if (state.selectedMonthObj.month !== now.getMonth() || state.selectedMonthObj.year !== now.getFullYear()) {
+            state.selectedMonthObj = { year: now.getFullYear(), month: now.getMonth() };
+            const sel = document.getElementById('monthSelect');
+            if(sel) sel.value = `${now.getFullYear()}-${now.getMonth()}`;
+            // Recarrega dados se necessário
+            if(window.loadData) window.loadData();
+        } else {
+            renderDailyDashboard();
+        }
     }
     
+    // --- MODO EDIÇÃO ---
     if (view === 'Edit' || view === 'edit') { 
         if(tb) tb.classList.remove('hidden');
         if(fdsContainer) fdsContainer.classList.remove('hidden');
@@ -87,11 +99,11 @@ export function switchAdminView(view) {
     }
 }
 
-// --- DASHBOARD INTELIGENTE (VERIFICA HORÁRIO) ---
+// --- LÓGICA DO DASHBOARD (STATUS DO DIA) ---
 export function renderDailyDashboard() {
-    const todayIndex = new Date().getDate() - 1; 
+    const todayIndex = new Date().getDate() - 1; // Dia de hoje (0-30)
     const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes(); // Hora atual em minutos
+    const currentMinutes = now.getHours() * 60 + now.getMinutes(); 
 
     const definitions = {
         'Ativo':    { label: 'Trabalhando', color: 'emerald', icon: 'fa-briefcase' },
@@ -106,19 +118,18 @@ export function renderDailyDashboard() {
     
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
+            // Pega o status EXATO do dia de hoje na escala
             const s = emp.schedule[todayIndex] || 'F';
             let g = 'Off'; 
             let statusText = s;
 
-            // Lógica Base
+            // Lógica de Status
             if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) {
-                // VERIFICAÇÃO DE HORÁRIO
-                const isOnShift = checkIsWorkingNow(emp.horario, currentMinutes);
-                
-                if (isOnShift) {
+                // Só conta como "Trabalhando" se estiver dentro do horário
+                if (checkIsWorkingNow(emp.horario, currentMinutes)) {
                     g = 'Ativo';
                 } else {
-                    g = 'Off'; // Se está escalado mas fora do horário, vai para Off
+                    g = 'Off';
                     statusText = 'Fora de Turno';
                 }
             } 
@@ -166,40 +177,25 @@ export function renderDailyDashboard() {
     }
 }
 
-// --- FUNÇÃO AUXILIAR: VALIDA HORÁRIO ---
+// --- VALIDAÇÃO DE HORÁRIO ---
 function checkIsWorkingNow(horarioString, currentMinutes) {
-    if (!horarioString) return true; // Se não tiver horário definido, assume que trabalha o dia todo (fallback)
-    
-    // Formato esperado: "08:00 às 17:00"
+    if (!horarioString) return true; 
     try {
         const parts = horarioString.toLowerCase().split('às');
         if (parts.length !== 2) return true;
-
         const startParts = parts[0].trim().split(':');
         const endParts = parts[1].trim().split(':');
-
         const startMin = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
         const endMin = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
-
-        // Caso simples: Começa e termina no mesmo dia (08:00 -> 17:00)
-        if (endMin > startMin) {
-            return currentMinutes >= startMin && currentMinutes < endMin;
-        } 
-        // Caso noturno: Vira o dia (22:00 -> 06:00)
-        else {
-            return currentMinutes >= startMin || currentMinutes < endMin;
-        }
-    } catch (e) {
-        console.warn("Erro ao processar horário:", horarioString);
-        return true; 
-    }
+        if (endMin > startMin) return currentMinutes >= startMin && currentMinutes < endMin;
+        else return currentMinutes >= startMin || currentMinutes < endMin;
+    } catch (e) { return true; }
 }
 
-// --- SELETOR DE FUNCIONÁRIO ---
+// --- SELETOR DE COLABORADOR ---
 function renderEmployeeSelectorWidget() {
     const container = document.getElementById('adminControls');
     if (!container || document.getElementById('adminEmployeeWidget')) return;
-
     const widget = document.createElement('div');
     widget.id = 'adminEmployeeWidget';
     widget.className = "premium-glass p-4 rounded-2xl border border-white/10 hidden animate-fade-in mb-4"; 
@@ -207,8 +203,7 @@ function renderEmployeeSelectorWidget() {
         <label class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mb-2 block">Editar Colaborador</label>
         <select id="employeeSelect" class="w-full bg-black/40 border border-white/10 text-white text-xs p-3 rounded-xl outline-none focus:border-purple-500 transition-all cursor-pointer">
             <option value="">Carregando...</option>
-        </select>
-    `;
+        </select>`;
     container.insertBefore(widget, container.firstChild);
 }
 
@@ -238,7 +233,6 @@ function renderIndividualEditor(name) {
     const user = state.scheduleData[name];
     if (!container || !user) return;
     const days = getDaysInMonth(state.selectedMonthObj.year, state.selectedMonthObj.month);
-    
     let html = `
     <div class="premium-glass p-4 rounded-xl border border-white/5 mb-4 animate-fade-in">
         <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
@@ -304,22 +298,8 @@ async function confirmSaveToCloud() {
     });
 }
 
-// --- FUNÇÕES AUXILIARES ---
-function renderEditToolbar() {
-    const toolbar = document.getElementById('editToolbar');
-    if(!toolbar) return;
-    const tools = [
-        { id: null, label: 'Auto', icon: 'fa-sync', color: 'text-gray-400', border: 'border-white/10' },
-        { id: 'T', label: 'T', icon: 'fa-briefcase', color: 'text-emerald-400', border: 'border-emerald-500/50' },
-        { id: 'F', label: 'F', icon: 'fa-coffee', color: 'text-amber-400', border: 'border-amber-500/50' },
-        { id: 'FS', label: 'Sab', icon: 'fa-sun', color: 'text-[#40E0D0]', border: 'border-[#40E0D0]' },
-        { id: 'FD', label: 'Dom', icon: 'fa-sun', color: 'text-[#4169E1]', border: 'border-[#4169E1]' },
-        { id: 'FE', label: 'Fér', icon: 'fa-plane', color: 'text-red-400', border: 'border-red-500/50' },
-        { id: 'A', label: 'Af', icon: 'fa-user-injured', color: 'text-orange-400', border: 'border-orange-500/50' },
-        { id: 'LM', label: 'LM', icon: 'fa-baby', color: 'text-pink-400', border: 'border-pink-500/50' }
-    ];
-    toolbar.innerHTML = tools.map(t => `<button onclick="window.setEditTool('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-white/5 border ${t.border} flex items-center gap-1.5 hover:bg-white/10 transition-all"><i class="fas ${t.icon} ${t.color} text-[9px]"></i><span class="text-[8px] font-bold text-white uppercase">${t.label}</span></button>`).join('');
-}
+// --- HELPERS ---
+function renderEditToolbar() { const toolbar = document.getElementById('editToolbar'); if(!toolbar) return; const tools = [ { id: null, label: 'Auto', icon: 'fa-sync', color: 'text-gray-400', border: 'border-white/10' }, { id: 'T', label: 'T', icon: 'fa-briefcase', color: 'text-emerald-400', border: 'border-emerald-500/50' }, { id: 'F', label: 'F', icon: 'fa-coffee', color: 'text-amber-400', border: 'border-amber-500/50' }, { id: 'FS', label: 'Sab', icon: 'fa-sun', color: 'text-[#40E0D0]', border: 'border-[#40E0D0]' }, { id: 'FD', label: 'Dom', icon: 'fa-sun', color: 'text-[#4169E1]', border: 'border-[#4169E1]' }, { id: 'FE', label: 'Fér', icon: 'fa-plane', color: 'text-red-400', border: 'border-red-500/50' }, { id: 'A', label: 'Af', icon: 'fa-user-injured', color: 'text-orange-400', border: 'border-orange-500/50' }, { id: 'LM', label: 'LM', icon: 'fa-baby', color: 'text-pink-400', border: 'border-pink-500/50' } ]; toolbar.innerHTML = tools.map(t => `<button onclick="window.setEditTool('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-white/5 border ${t.border} flex items-center gap-1.5 hover:bg-white/10 transition-all"><i class="fas ${t.icon} ${t.color} text-[9px]"></i><span class="text-[8px] font-bold text-white uppercase">${t.label}</span></button>`).join(''); }
 function setEditTool(id) { activeTool = (id === 'null' || id === null) ? null : id; showNotification(activeTool ? `Ferramenta: ${activeTool}` : "Modo Automático"); }
 function initMonthSelector() { const sel = document.getElementById('monthSelect'); if (!sel) return; sel.innerHTML = availableMonths.map(m => { const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month; return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>${monthNames[m.month]} ${m.year}</option>`; }).join(''); sel.onchange = (e) => { const [y, m] = e.target.value.split('-'); state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) }; if (window.loadData) window.loadData(); else location.reload(); }; }
 export async function renderInviteWidget() { const container = document.getElementById('inviteWidgetContainer'); if (!container) return; container.innerHTML = ''; try { const q = query(getCompanyCollection("convites"), where("active", "==", true)); onSnapshot(q, (snap) => { const div = document.createElement('div'); div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in"; if (!snap.empty) { const inviteCode = snap.docs[0].id; const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`; div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between"><span><i class="fas fa-link text-emerald-400 mr-1"></i> Convite Ativo</span></h3><div class="flex gap-1 mb-2"><input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly><button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px]"><i class="fas fa-copy"></i></button></div><button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase transition-colors">Revogar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnCopyInvite').onclick = () => { navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value); showNotification("Link copiado!", "success"); }; document.getElementById('btnRevokeInvite').onclick = () => { askConfirmation("Revogar convite?", async () => { await updateDoc(getCompanyDoc("convites", inviteCode), { active: false }); showNotification("Revogado"); }); }; } else { div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-1">Novo Colaborador</h3><button id="btnGenerateInvite" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-[9px] font-bold uppercase shadow-lg transition-all active:scale-95">Gerar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnGenerateInvite').onclick = async () => { const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(); try { await setDoc(getCompanyDoc("convites", code), { createdBy: state.currentUser.uid, createdAt: serverTimestamp(), active: true }); showNotification("Gerado!"); } catch (e) { showNotification("Erro", "error"); } }; } }); } catch(e) {} }
