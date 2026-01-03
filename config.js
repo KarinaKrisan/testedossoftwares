@@ -18,14 +18,14 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 window.db = db; 
 
-// --- GERAÇÃO DINÂMICA DE DATAS ---
+// --- DATAS DINÂMICAS (Correção para não travar em Dez/2025) ---
 const now = new Date();
 const currentYear = now.getFullYear();
-const currentMonth = now.getMonth(); // 0 = Janeiro
+const currentMonth = now.getMonth();
 
-// Gera lista de meses (Do mês passado até 12 meses à frente)
 export const availableMonths = [];
-const startView = new Date(currentYear, currentMonth - 1, 1); // Começa 1 mês atrás para histórico
+// Gera lista começando 1 mês atrás até 12 meses à frente
+const startView = new Date(currentYear, currentMonth - 1, 1);
 
 for(let i = 0; i < 14; i++) {
     const d = new Date(startView.getFullYear(), startView.getMonth() + i, 1);
@@ -40,13 +40,13 @@ export const state = {
     currentUser: null,
     profile: null, 
     scheduleData: {}, 
-    // Define o mês inicial como o Mês Atual do sistema
+    // INICIALIZA COM A DATA DE HOJE
     selectedMonthObj: { year: currentYear, month: currentMonth }, 
     activeRequestType: 'troca_dia_trabalho',
     companyId: null 
 };
 
-// --- HELPERS SAAS ---
+// --- HELPERS ---
 export function getCompanyCollection(path) {
     if (!state.companyId) throw new Error("ID da empresa não definido.");
     return collection(db, "companies", state.companyId, path);
@@ -64,10 +64,8 @@ export function getCompanySubDoc(root, docId, sub, subDocId) {
     return doc(db, "companies", state.companyId, root, docId, sub, subDocId);
 }
 
-// --- CONSTANTES ---
 export const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-// --- UTILS ---
 export function hideLoader() {
     const o = document.getElementById('appLoadingOverlay');
     if(o) { o.classList.add('opacity-0'); setTimeout(() => o.classList.add('hidden'), 500); }
