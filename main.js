@@ -45,10 +45,22 @@ onAuthStateChanged(auth, async (user) => {
                 const newData = docSnap.data();
                 state.profile = newData;
                 const myLevel = newData.level || 10;
-                state.isDualRole = myLevel >= 40; 
+                
+                // --- ALTERAÇÃO AQUI: Qualquer nível ACIMA de 10 tem dupla função ---
+                state.isDualRole = myLevel > 10; 
                 
                 updateDynamicMenu();
-                if (state.isDualRole) setInterfaceMode('admin'); else setInterfaceMode('collab');
+                
+                // Na primeira carga, se for dual role e estiver na URL de admin, vai pro admin.
+                // Caso contrário, padrão é collab.
+                if (isFirstLoad) {
+                    // Mantém onde estava se der refresh, ou padrão collab
+                    setInterfaceMode('collab');
+                } else {
+                    // Atualização em tempo real (ex: foi promovido agora)
+                    const btnDual = document.getElementById('btnDualMode');
+                    if (state.isDualRole && btnDual) btnDual.classList.remove('hidden');
+                }
                 
                 loadData(); 
                 isFirstLoad = false;
@@ -93,7 +105,6 @@ async function processScheduleData(querySnapshot, detailsMap) {
     });
     Object.keys(detailsMap).forEach(uid => {
         const u = detailsMap[uid];
-        // SE NÃO EXISTE DADO NO BANCO, buildUserObj CRIA VAZIO (F)
         if (u.active !== false && !Object.values(processed).some(p => p.uid === uid)) processed[u.name||u.nome] = buildUserObj(uid, u, []);
     });
     state.scheduleData = processed;
@@ -105,7 +116,7 @@ function buildUserObj(uid, profile, schedule) {
     if (Array.isArray(schedule)) {
         for(let i=0; i<days; i++) safeSchedule.push((schedule[i]===undefined||schedule[i]===null||schedule[i]==="") ? "F" : schedule[i]);
     } else {
-        safeSchedule = Array(days).fill("F"); // AQUI GARANTE QUE O MÊS NOVO É VAZIO
+        safeSchedule = Array(days).fill("F");
     }
     const userObj = {
         uid: uid, name: profile.name || profile.nome || "Usuário", role: profile.role || 'collaborator', level: profile.level || 10,
@@ -120,6 +131,26 @@ function setInterfaceMode(mode) {
     state.currentViewMode = mode;
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
+    const btnDual = document.getElementById('btnDualMode');
+
+    // Configura Botão de Troca
+    if (state.isDualRole && btnDual) {
+        btnDual.classList.remove('hidden');
+        btnDual.style.display = 'flex';
+        btnDual.onclick = () => setInterfaceMode(state.currentViewMode === 'admin' ? 'collab' : 'admin');
+        
+        const dualText = document.getElementById('dualModeText');
+        const dualIcon = document.getElementById('dualModeIcon');
+        if (mode === 'admin') {
+            if(dualText) dualText.innerText = "Área Colaborador";
+            if(dualIcon) dualIcon.className = "fas fa-user-astronaut text-[9px] text-gray-400 group-hover:text-blue-400";
+        } else {
+            if(dualText) dualText.innerText = "Acessar Admin";
+            if(dualIcon) dualIcon.className = "fas fa-shield-alt text-[9px] text-gray-400 group-hover:text-purple-400";
+        }
+    } else if (btnDual) {
+        btnDual.classList.add('hidden');
+    }
     
     if (mode === 'admin') {
         state.isAdmin = true; 
@@ -133,7 +164,10 @@ function setInterfaceMode(mode) {
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-blue-600 rounded-full shadow-[0_0_15px_#2563eb]";
         if(headerSuf) { headerSuf.className = "text-blue-500 text-[10px] align-top ml-1"; headerSuf.innerText = "COLLAB"; }
         
+        // Esconde UI Admin
         ['screenDaily', 'screenLogs', 'screenApprovals', 'adminTabNav', 'editToolbar', 'adminControls'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+        
+        // Mostra UI Collab
         document.getElementById('screenEdit')?.classList.remove('hidden');
         document.getElementById('weekendDutyContainer')?.classList.remove('hidden');
         
