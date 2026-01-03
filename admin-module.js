@@ -8,7 +8,6 @@ let activeTool = null;
 let currentEditingUid = null;
 
 // --- EXPORTAÇÕES GLOBAIS ---
-// Definidas no window para o HTML acessar
 window.openPromoteModal = openPromoteModal;
 window.confirmPromotion = confirmPromotion;
 window.selectRole = selectRole;
@@ -18,8 +17,8 @@ window.setEditTool = setEditTool;
 window.askConfirmation = askConfirmation;
 window.handleAdminCellClick = handleAdminCellClick;
 window.loadSelectedUser = loadSelectedUser;
-// A função clearCurrentMonthSchedule é definida abaixo e exportada aqui
-window.clearCurrentMonthSchedule = () => clearCurrentMonthSchedule();
+// Expor a função de limpeza explicitamente
+window.clearCurrentMonthSchedule = clearCurrentMonthSchedule;
 
 // --- INICIALIZAÇÃO ---
 export function initAdminUI() {
@@ -31,10 +30,13 @@ export function initAdminUI() {
 
     renderEditToolbar();
     initApprovalsTab();
-    renderInviteWidget();
     initMonthSelector();
     renderEmployeeSelectorWidget();
+    
+    // --- RENDERIZA O CONVITE AQUI ---
+    renderInviteWidget();
 
+    // Força Dashboard na data atual
     switchAdminView('Daily');
 
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
@@ -61,23 +63,24 @@ export async function switchAdminView(view) {
     const tb = document.getElementById('editToolbar');
     const fdsContainer = document.getElementById('weekendDutyContainer');
     const empWidget = document.getElementById('adminEmployeeWidget');
+    const inviteWidget = document.getElementById('inviteWidgetContainer'); // Pega o container do convite
 
     // --- MODO DASHBOARD ---
     if (view === 'Daily' || view === 'daily') {
         if (tb) tb.classList.add('hidden');
         if (fdsContainer) fdsContainer.classList.add('hidden');
         if (empWidget) empWidget.classList.add('hidden');
+        
+        // Garante que o convite apareça se estiver na barra lateral
+        if (inviteWidget) inviteWidget.classList.remove('hidden');
 
-        // FORÇA ATUALIZAÇÃO PARA DATA REAL (CORREÇÃO DEZEMBRO -> JANEIRO)
+        // FORÇA ATUALIZAÇÃO PARA MÊS ATUAL
         const now = new Date();
-        const currentY = now.getFullYear();
-        const currentM = now.getMonth();
-
-        if (state.selectedMonthObj.year !== currentY || state.selectedMonthObj.month !== currentM) {
-            state.selectedMonthObj = { year: currentY, month: currentM };
+        if (state.selectedMonthObj.year !== now.getFullYear() || state.selectedMonthObj.month !== now.getMonth()) {
+            state.selectedMonthObj = { year: now.getFullYear(), month: now.getMonth() };
             const sel = document.getElementById('monthSelect');
-            if (sel) sel.value = `${currentY}-${currentM}`;
-            if (window.loadData) await window.loadData(); // Recarrega dados do mês correto
+            if (sel) sel.value = `${now.getFullYear()}-${now.getMonth()}`;
+            if (window.loadData) await window.loadData();
         } else {
             renderDailyDashboard();
         }
@@ -88,6 +91,7 @@ export async function switchAdminView(view) {
         if (tb) tb.classList.remove('hidden');
         if (fdsContainer) fdsContainer.classList.remove('hidden');
         if (empWidget) empWidget.classList.remove('hidden');
+        if (inviteWidget) inviteWidget.classList.remove('hidden');
 
         populateEmployeeSelect();
         const select = document.getElementById('employeeSelect');
@@ -104,7 +108,91 @@ export async function switchAdminView(view) {
     }
 }
 
-// --- FUNÇÃO DE EXCLUSÃO (CORRIGIDA) ---
+// --- WIDGET DE CONVITE (CORRIGIDO) ---
+export async function renderInviteWidget() {
+    const container = document.getElementById('inviteWidgetContainer');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-[9px] text-gray-500 animate-pulse p-2">Carregando...</div>';
+
+    try {
+        const q = query(getCompanyCollection("convites"), where("active", "==", true));
+        
+        onSnapshot(q, (snap) => {
+            container.innerHTML = ''; // Limpa antes de redesenhar
+            const div = document.createElement('div');
+            div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in shadow-lg";
+
+            if (!snap.empty) {
+                // MODO: LINK ATIVO
+                const inviteCode = snap.docs[0].id;
+                const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
+                
+                div.innerHTML = `
+                    <h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between items-center">
+                        <span><i class="fas fa-link text-emerald-400 mr-1"></i> Convite Ativo</span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    </h3>
+                    <div class="flex gap-1 mb-2">
+                        <input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly>
+                        <button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px] active:scale-95 transition-transform"><i class="fas fa-copy"></i></button>
+                    </div>
+                    <button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase transition-colors">
+                        Revogar Link
+                    </button>
+                `;
+                
+                container.appendChild(div);
+
+                document.getElementById('btnCopyInvite').onclick = () => {
+                    navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value);
+                    showNotification("Link copiado!", "success");
+                };
+
+                document.getElementById('btnRevokeInvite').onclick = () => {
+                    askConfirmation("Revogar este convite?", async () => {
+                        await updateDoc(getCompanyDoc("convites", inviteCode), { active: false });
+                        showNotification("Convite revogado");
+                    });
+                };
+
+            } else {
+                // MODO: GERAR NOVO
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="text-[10px] font-bold text-white uppercase"><i class="fas fa-user-plus text-gray-400 mr-1"></i> Novo Colaborador</h3>
+                            <p class="text-[8px] text-gray-500 mt-0.5">Crie um link de cadastro</p>
+                        </div>
+                        <button id="btnGenerateInvite" class="bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-3 rounded text-[9px] font-bold uppercase shadow-lg transition-all active:scale-95">
+                            Gerar Link
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+
+                document.getElementById('btnGenerateInvite').onclick = async () => {
+                    const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+                    try {
+                        await setDoc(getCompanyDoc("convites", code), { 
+                            createdBy: state.currentUser.uid, 
+                            createdAt: serverTimestamp(), 
+                            active: true 
+                        });
+                        showNotification("Link Gerado!");
+                    } catch (e) {
+                        showNotification("Erro ao gerar: " + e.message, "error");
+                    }
+                };
+            }
+        });
+    } catch(e) {
+        container.innerHTML = '';
+        console.error(e);
+    }
+}
+
+// --- FUNÇÃO DE EXCLUSÃO ---
 async function clearCurrentMonthSchedule() {
     const m = state.selectedMonthObj;
     const label = `${monthNames[m.month]}/${m.year}`;
@@ -113,7 +201,7 @@ async function clearCurrentMonthSchedule() {
         <span class="text-red-500 font-bold block text-lg mb-2">PERIGO!</span>
         Deseja <strong class="text-white">EXCLUIR DEFINITIVAMENTE</strong> a escala de ${label}?
         <br><br>
-        <span class='text-gray-400 text-[10px]'>Isso apagará todos os registros de turno deste mês.</span>
+        <span class='text-gray-400 text-[10px]'>Isso apagará todos os registros do banco de dados.</span>
     `, async () => {
         try {
             const batch = writeBatch(db);
@@ -121,8 +209,8 @@ async function clearCurrentMonthSchedule() {
 
             Object.values(state.scheduleData).forEach(user => {
                 const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
-                batch.delete(ref); // DELETA o documento
-                user.schedule = Array(32).fill('F'); // Limpa visualmente
+                batch.delete(ref); 
+                user.schedule = Array(32).fill('F');
             });
 
             await batch.commit();
@@ -140,7 +228,7 @@ async function clearCurrentMonthSchedule() {
     });
 }
 
-// --- DASHBOARD (CARD FÉRIAS DINÂMICO) ---
+// --- DASHBOARD (LÓGICA DE FÉRIAS CORRIGIDA) ---
 export function renderDailyDashboard() {
     const todayIndex = new Date().getDate() - 1; // 0 = Dia 1
     const now = new Date();
@@ -159,14 +247,14 @@ export function renderDailyDashboard() {
 
     if (state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
-            // Verifica o status no DIA DE HOJE
+            // Pega o status do dia de HOJE
             const s = emp.schedule[todayIndex] || 'F';
             let g = 'Off';
             let statusText = s;
 
-            // Prioridades
+            // Prioridades de Status
             if (s === 'FE') {
-                g = 'Ferias'; // Só fica no card Férias se HOJE for FE
+                g = 'Ferias'; // Só entra aqui se HOJE for FE
             } else if (s === 'A') {
                 g = 'Afastado';
             } else if (s === 'LM') {
@@ -247,7 +335,13 @@ function renderEmployeeSelectorWidget() {
         <select id="employeeSelect" class="w-full bg-black/40 border border-white/10 text-white text-xs p-3 rounded-xl outline-none focus:border-purple-500 transition-all cursor-pointer">
             <option value="">Carregando...</option>
         </select>`;
-    container.insertBefore(widget, container.firstChild);
+    // Insere o widget no topo, mas DEPOIS do widget de convite se ele existir
+    const inviteW = document.getElementById('inviteWidgetContainer');
+    if (inviteW && inviteW.nextSibling) {
+        container.insertBefore(widget, inviteW.nextSibling);
+    } else {
+        container.appendChild(widget);
+    }
 }
 
 export function populateEmployeeSelect() {
@@ -365,7 +459,6 @@ function renderEditToolbar() {
 
 function setEditTool(id) { activeTool = (id === 'null' || id === null) ? null : id; showNotification(activeTool ? `Ferramenta: ${activeTool}` : "Modo Automático"); }
 function initMonthSelector() { const sel = document.getElementById('monthSelect'); if (!sel) return; sel.innerHTML = availableMonths.map(m => { const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month; return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>${monthNames[m.month]} ${m.year}</option>`; }).join(''); sel.onchange = (e) => { const [y, m] = e.target.value.split('-'); state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) }; if (window.loadData) window.loadData(); else location.reload(); }; }
-export async function renderInviteWidget() { const container = document.getElementById('inviteWidgetContainer'); if (!container) return; container.innerHTML = ''; try { const q = query(getCompanyCollection("convites"), where("active", "==", true)); onSnapshot(q, (snap) => { const div = document.createElement('div'); div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in"; if (!snap.empty) { const inviteCode = snap.docs[0].id; const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html', '')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`; div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between"><span><i class="fas fa-link text-emerald-400 mr-1"></i> Convite Ativo</span></h3><div class="flex gap-1 mb-2"><input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly><button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px]"><i class="fas fa-copy"></i></button></div><button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase transition-colors">Revogar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnCopyInvite').onclick = () => { navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value); showNotification("Link copiado!", "success"); }; document.getElementById('btnRevokeInvite').onclick = () => { askConfirmation("Revogar convite?", async () => { await updateDoc(getCompanyDoc("convites", inviteCode), { active: false }); showNotification("Revogado"); }); }; } else { div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-1">Novo Colaborador</h3><button id="btnGenerateInvite" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-[9px] font-bold uppercase shadow-lg transition-all active:scale-95">Gerar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnGenerateInvite').onclick = async () => { const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(); try { await setDoc(getCompanyDoc("convites", code), { createdBy: state.currentUser.uid, createdAt: serverTimestamp(), active: true }); showNotification("Gerado!"); } catch (e) { showNotification("Erro", "error"); } }; } }); } catch (e) { } }
 function openPromoteModal() { const modal = document.getElementById('promoteModal'); const userSelect = document.getElementById('promoteTargetUser'); const roleContainer = document.getElementById('roleOptionsContainer'); if (!userSelect || !modal) return; document.getElementById('selectedRoleKey').value = ""; userSelect.innerHTML = '<option value="">Selecione...</option>'; Object.values(state.scheduleData).sort((a, b) => a.name.localeCompare(b.name)).forEach(user => { if (user.uid !== state.currentUser.uid) userSelect.innerHTML += `<option value="${user.uid}">${user.name} (${user.cargo || '-'})</option>`; }); roleContainer.innerHTML = ''; Object.entries(HIERARCHY).forEach(([key, config]) => { if (config.level <= 100) { const btn = document.createElement('div'); btn.className = `role-option cursor-pointer w-full p-2 mb-2 rounded border border-white/10 bg-white/5 flex items-center justify-between`; btn.onclick = (e) => window.selectRole(e, key); btn.innerHTML = `<span class="text-[10px] text-white font-bold">${config.label}</span><span class="text-[9px] text-gray-500">${config.level}</span>`; roleContainer.appendChild(btn); } }); modal.classList.remove('hidden'); }
 function selectRole(e, key) { document.querySelectorAll('.role-option').forEach(el => el.classList.remove('border-purple-500', 'bg-purple-500/10')); e.currentTarget.classList.add('border-purple-500', 'bg-purple-500/10'); document.getElementById('selectedRoleKey').value = key; }
 async function confirmPromotion() { const targetUid = document.getElementById('promoteTargetUser').value; const roleKey = document.getElementById('selectedRoleKey').value; if (!targetUid || !roleKey) return showNotification("Preencha todos os campos", "error"); const config = HIERARCHY[roleKey]; const targetUser = Object.values(state.scheduleData).find(u => u.uid === targetUid); askConfirmation(`Promover ${targetUser.name} para ${config.label}?`, async () => { try { await updateDoc(getCompanyDoc("users", targetUid), { cargo: config.label, role: config.role, level: config.level, promotedBy: state.currentUser.email }); document.getElementById('promoteModal').classList.add('hidden'); showNotification("Cargo Atualizado"); addAuditLog("Promoção", `${targetUser.name} -> ${config.label}`); } catch (e) { showNotification("Erro", "error"); } }); }
