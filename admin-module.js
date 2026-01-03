@@ -1,7 +1,7 @@
 // admin-module.js
 import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc, HIERARCHY, availableMonths, monthNames, getDaysInMonth, pad } from './config.js';
 import { showNotification, renderWeekendDuty } from './ui.js';
-import { doc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+import { doc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, addDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 let dailyUpdateInterval = null;
 let activeTool = null; 
@@ -17,6 +17,7 @@ window.setEditTool = setEditTool;
 window.askConfirmation = askConfirmation;
 window.handleAdminCellClick = handleAdminCellClick;
 window.loadSelectedUser = loadSelectedUser;
+window.clearCurrentMonthSchedule = clearCurrentMonthSchedule; // Nova Função
 
 // --- INICIALIZAÇÃO ---
 export function initAdminUI() {
@@ -32,7 +33,6 @@ export function initAdminUI() {
     initMonthSelector(); 
     renderEmployeeSelectorWidget(); 
 
-    // Força o carregamento da Dashboard com dados ATUAIS
     switchAdminView('Daily');
     
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
@@ -45,7 +45,6 @@ export function initAdminUI() {
 export async function switchAdminView(view) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
-    // Alterna Telas
     ['Daily', 'Edit', 'Approvals', 'Logs'].forEach(s => {
         const screen = document.getElementById(`screen${s}`);
         if(screen) screen.classList.toggle('hidden', s.toLowerCase() !== view.toLowerCase());
@@ -61,36 +60,22 @@ export async function switchAdminView(view) {
     const fdsContainer = document.getElementById('weekendDutyContainer');
     const empWidget = document.getElementById('adminEmployeeWidget');
 
-    // --- MODO DASHBOARD: LÓGICA DE CORREÇÃO DE DATA ---
+    // --- MODO DASHBOARD ---
     if (view === 'Daily' || view === 'daily') {
         if(tb) tb.classList.add('hidden');
         if(fdsContainer) fdsContainer.classList.add('hidden');
         if(empWidget) empWidget.classList.add('hidden'); 
         
-        // CORREÇÃO CRÍTICA: Se a view for Dashboard, OBRIGA a ser o mês atual
         const now = new Date();
-        const realYear = now.getFullYear();
-        const realMonth = now.getMonth();
-
-        // Se o estado atual não for o mês real (ex: estava em Dezembro/2025)
-        if (state.selectedMonthObj.year !== realYear || state.selectedMonthObj.month !== realMonth) {
-            console.log("Detectado mês antigo na Dashboard. Atualizando para mês atual...");
-            
-            // 1. Atualiza Estado
-            state.selectedMonthObj = { year: realYear, month: realMonth };
-            
-            // 2. Atualiza o Dropdown Visual
+        // Se estiver vendo mês antigo, força o atual para os cards funcionarem
+        if (state.selectedMonthObj.year !== now.getFullYear() || state.selectedMonthObj.month !== now.getMonth()) {
+            state.selectedMonthObj = { year: now.getFullYear(), month: now.getMonth() };
             const sel = document.getElementById('monthSelect');
-            if(sel) sel.value = `${realYear}-${realMonth}`;
-            
-            // 3. RECARREGA OS DADOS DO FIREBASE (Crucial para os cards corrigirem)
-            if(window.loadData) {
-                await window.loadData(); // Espera carregar
-            }
-        } 
-        
-        // Só renderiza depois de garantir que os dados são do mês atual
-        renderDailyDashboard();
+            if(sel) sel.value = `${now.getFullYear()}-${now.getMonth()}`;
+            if(window.loadData) await window.loadData();
+        } else {
+            renderDailyDashboard();
+        }
     }
     
     // --- MODO EDIÇÃO ---
@@ -114,9 +99,45 @@ export async function switchAdminView(view) {
     }
 }
 
-// --- DASHBOARD (Lê status do dia ATUAL) ---
+// --- FUNÇÃO NOVA: LIMPAR ESCALA (RESET) ---
+async function clearCurrentMonthSchedule() {
+    const m = state.selectedMonthObj;
+    const label = `${monthNames[m.month]}/${m.year}`;
+    
+    askConfirmation(`ATENÇÃO: Deseja ZERAR a escala de ${label}? <br><span class='text-red-400 text-[9px]'>Isso definirá todos como FOLGA (F).</span>`, async () => {
+        try {
+            const batch = writeBatch(db);
+            const docId = `${m.year}-${String(m.month+1).padStart(2,'0')}`;
+            
+            // Para cada usuário na memória, define array de 'F'
+            Object.values(state.scheduleData).forEach(user => {
+                const emptySchedule = Array(32).fill('F'); // 31 dias + margem
+                const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
+                batch.set(ref, { calculatedSchedule: emptySchedule }, { merge: true });
+                
+                // Atualiza localmente também
+                user.schedule = emptySchedule;
+            });
+
+            await batch.commit();
+            await addAuditLog("Reset de Escala", `Zerou escala de ${label}`);
+            
+            showNotification(`Escala de ${label} reiniciada!`);
+            
+            // Atualiza a tela
+            if(currentEditingUid) renderIndividualEditor(currentEditingUid);
+            renderWeekendDuty();
+            
+        } catch(e) {
+            console.error(e);
+            showNotification("Erro ao limpar escala: " + e.message, "error");
+        }
+    });
+}
+
+// --- DASHBOARD (Correção: Card de Férias/Off em tempo real) ---
 export function renderDailyDashboard() {
-    const todayIndex = new Date().getDate() - 1; // Dia de hoje (0-30)
+    const todayIndex = new Date().getDate() - 1; 
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes(); 
 
@@ -133,12 +154,10 @@ export function renderDailyDashboard() {
     
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
-            // Pega o status do dia de HOJE no banco de dados
             const s = emp.schedule[todayIndex] || 'F';
             let g = 'Off'; 
             let statusText = s;
 
-            // Se for trabalho, verifica horário
             if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) {
                 if (checkIsWorkingNow(emp.horario, currentMinutes)) {
                     g = 'Ativo';
@@ -148,7 +167,7 @@ export function renderDailyDashboard() {
                 }
             } 
             else if (['F'].includes(s)) g = 'Folga';
-            else if (s === 'FE') g = 'Ferias'; // Se hoje for FE, cai aqui
+            else if (s === 'FE') g = 'Ferias';
             else if (s === 'A') g = 'Afastado';
             else if (s === 'LM') g = 'Licenca';
             
@@ -191,7 +210,7 @@ export function renderDailyDashboard() {
     }
 }
 
-// --- VALIDAÇÃO DE HORÁRIO ---
+// --- UTILS ---
 function checkIsWorkingNow(horarioString, currentMinutes) {
     if (!horarioString) return true; 
     try {
@@ -206,7 +225,6 @@ function checkIsWorkingNow(horarioString, currentMinutes) {
     } catch (e) { return true; }
 }
 
-// --- SELETOR DE COLABORADOR ---
 function renderEmployeeSelectorWidget() {
     const container = document.getElementById('adminControls');
     if (!container || document.getElementById('adminEmployeeWidget')) return;
@@ -312,8 +330,30 @@ async function confirmSaveToCloud() {
     });
 }
 
-// --- HELPERS ---
-function renderEditToolbar() { const toolbar = document.getElementById('editToolbar'); if(!toolbar) return; const tools = [ { id: null, label: 'Auto', icon: 'fa-sync', color: 'text-gray-400', border: 'border-white/10' }, { id: 'T', label: 'T', icon: 'fa-briefcase', color: 'text-emerald-400', border: 'border-emerald-500/50' }, { id: 'F', label: 'F', icon: 'fa-coffee', color: 'text-amber-400', border: 'border-amber-500/50' }, { id: 'FS', label: 'Sab', icon: 'fa-sun', color: 'text-[#40E0D0]', border: 'border-[#40E0D0]' }, { id: 'FD', label: 'Dom', icon: 'fa-sun', color: 'text-[#4169E1]', border: 'border-[#4169E1]' }, { id: 'FE', label: 'Fér', icon: 'fa-plane', color: 'text-red-400', border: 'border-red-500/50' }, { id: 'A', label: 'Af', icon: 'fa-user-injured', color: 'text-orange-400', border: 'border-orange-500/50' }, { id: 'LM', label: 'LM', icon: 'fa-baby', color: 'text-pink-400', border: 'border-pink-500/50' } ]; toolbar.innerHTML = tools.map(t => `<button onclick="window.setEditTool('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-white/5 border ${t.border} flex items-center gap-1.5 hover:bg-white/10 transition-all"><i class="fas ${t.icon} ${t.color} text-[9px]"></i><span class="text-[8px] font-bold text-white uppercase">${t.label}</span></button>`).join(''); }
+function renderEditToolbar() {
+    const toolbar = document.getElementById('editToolbar');
+    if(!toolbar) return;
+    const tools = [
+        { id: null, label: 'Auto', icon: 'fa-sync', color: 'text-gray-400', border: 'border-white/10' },
+        { id: 'T', label: 'T', icon: 'fa-briefcase', color: 'text-emerald-400', border: 'border-emerald-500/50' },
+        { id: 'F', label: 'F', icon: 'fa-coffee', color: 'text-amber-400', border: 'border-amber-500/50' },
+        { id: 'FS', label: 'Sab', icon: 'fa-sun', color: 'text-[#40E0D0]', border: 'border-[#40E0D0]' },
+        { id: 'FD', label: 'Dom', icon: 'fa-sun', color: 'text-[#4169E1]', border: 'border-[#4169E1]' },
+        { id: 'FE', label: 'Fér', icon: 'fa-plane', color: 'text-red-400', border: 'border-red-500/50' },
+        { id: 'A', label: 'Af', icon: 'fa-user-injured', color: 'text-orange-400', border: 'border-orange-500/50' },
+        { id: 'LM', label: 'LM', icon: 'fa-baby', color: 'text-pink-400', border: 'border-pink-500/50' }
+    ];
+    // ADICIONA O BOTÃO DE LIMPAR (LIXEIRA) NO FINAL
+    toolbar.innerHTML = tools.map(t => `<button onclick="window.setEditTool('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-white/5 border ${t.border} flex items-center gap-1.5 hover:bg-white/10 transition-all"><i class="fas ${t.icon} ${t.color} text-[9px]"></i><span class="text-[8px] font-bold text-white uppercase">${t.label}</span></button>`).join('');
+    
+    // Botão Limpar
+    const btnClear = document.createElement('button');
+    btnClear.className = "px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/50 flex items-center gap-1.5 hover:bg-red-500/20 transition-all ml-auto";
+    btnClear.innerHTML = `<i class="fas fa-trash text-red-400 text-[9px]"></i><span class="text-[8px] font-bold text-red-200 uppercase">Limpar Mês</span>`;
+    btnClear.onclick = window.clearCurrentMonthSchedule;
+    toolbar.appendChild(btnClear);
+}
+
 function setEditTool(id) { activeTool = (id === 'null' || id === null) ? null : id; showNotification(activeTool ? `Ferramenta: ${activeTool}` : "Modo Automático"); }
 function initMonthSelector() { const sel = document.getElementById('monthSelect'); if (!sel) return; sel.innerHTML = availableMonths.map(m => { const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month; return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>${monthNames[m.month]} ${m.year}</option>`; }).join(''); sel.onchange = (e) => { const [y, m] = e.target.value.split('-'); state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) }; if (window.loadData) window.loadData(); else location.reload(); }; }
 export async function renderInviteWidget() { const container = document.getElementById('inviteWidgetContainer'); if (!container) return; container.innerHTML = ''; try { const q = query(getCompanyCollection("convites"), where("active", "==", true)); onSnapshot(q, (snap) => { const div = document.createElement('div'); div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in"; if (!snap.empty) { const inviteCode = snap.docs[0].id; const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`; div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between"><span><i class="fas fa-link text-emerald-400 mr-1"></i> Convite Ativo</span></h3><div class="flex gap-1 mb-2"><input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly><button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px]"><i class="fas fa-copy"></i></button></div><button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase transition-colors">Revogar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnCopyInvite').onclick = () => { navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value); showNotification("Link copiado!", "success"); }; document.getElementById('btnRevokeInvite').onclick = () => { askConfirmation("Revogar convite?", async () => { await updateDoc(getCompanyDoc("convites", inviteCode), { active: false }); showNotification("Revogado"); }); }; } else { div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-1">Novo Colaborador</h3><button id="btnGenerateInvite" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-[9px] font-bold uppercase shadow-lg transition-all active:scale-95">Gerar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnGenerateInvite').onclick = async () => { const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(); try { await setDoc(getCompanyDoc("convites", code), { createdBy: state.currentUser.uid, createdAt: serverTimestamp(), active: true }); showNotification("Gerado!"); } catch (e) { showNotification("Erro", "error"); } }; } }); } catch(e) {} }
