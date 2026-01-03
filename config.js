@@ -18,13 +18,14 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 window.db = db; 
 
-// --- DATAS DINÂMICAS (Correção para não travar em Dez/2025) ---
+// --- DATAS DINÂMICAS (Sempre pega a data do computador) ---
 const now = new Date();
 const currentYear = now.getFullYear();
-const currentMonth = now.getMonth();
+const currentMonth = now.getMonth(); // 0 = Janeiro, 11 = Dezembro
 
 export const availableMonths = [];
 // Gera lista começando 1 mês atrás até 12 meses à frente
+// Ex: Se hoje é Jan/2026, gera de Dez/2025 a Jan/2027
 const startView = new Date(currentYear, currentMonth - 1, 1);
 
 for(let i = 0; i < 14; i++) {
@@ -40,7 +41,7 @@ export const state = {
     currentUser: null,
     profile: null, 
     scheduleData: {}, 
-    // INICIALIZA COM A DATA DE HOJE
+    // INICIALIZA COM A DATA DE HOJE (Janeiro 2026)
     selectedMonthObj: { year: currentYear, month: currentMonth }, 
     activeRequestType: 'troca_dia_trabalho',
     companyId: null 
