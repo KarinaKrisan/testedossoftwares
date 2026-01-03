@@ -21,23 +21,19 @@ window.clearCurrentMonthSchedule = clearCurrentMonthSchedule;
 
 // --- INICIALIZAÇÃO ---
 export function initAdminUI() {
-    // Garante que os containers estejam visíveis
     ['adminTabNav', 'adminControls', 'editToolbar'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
     ['collabControls'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
 
     const btnSave = document.getElementById('btnSaveConfirm');
     if(btnSave) btnSave.onclick = confirmSaveToCloud;
     
-    // Inicializa todos os componentes
     renderEditToolbar(); 
     initApprovalsTab(); 
+    renderInviteWidget(); 
     initMonthSelector(); 
     renderEmployeeSelectorWidget(); 
-    
-    // --- AQUI ESTÁ A CHAMADA DO CONVITE ---
-    renderInviteWidget(); 
 
-    // Inicia na Dashboard com dados atuais
+    // Força atualização inicial
     switchAdminView('Daily');
     
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
@@ -64,27 +60,34 @@ export async function switchAdminView(view) {
     const tb = document.getElementById('editToolbar');
     const fdsContainer = document.getElementById('weekendDutyContainer');
     const empWidget = document.getElementById('adminEmployeeWidget');
-    const inviteWidget = document.getElementById('inviteWidgetContainer'); // Container do convite
 
     // --- MODO DASHBOARD ---
     if (view === 'Daily' || view === 'daily') {
         if(tb) tb.classList.add('hidden');
         if(fdsContainer) fdsContainer.classList.add('hidden');
         if(empWidget) empWidget.classList.add('hidden'); 
-        // O convite pode ficar visível na dashboard ou não, dependendo da sua preferência. 
-        // Geralmente deixamos visível no topo dos controles.
-        if(inviteWidget) inviteWidget.classList.remove('hidden');
-
-        // Força mês atual
+        
+        // CORREÇÃO CRÍTICA: SE ESTIVER NA DASHBOARD, O MÊS TEM QUE SER O ATUAL
         const now = new Date();
-        if (state.selectedMonthObj.year !== now.getFullYear() || state.selectedMonthObj.month !== now.getMonth()) {
-            state.selectedMonthObj = { year: now.getFullYear(), month: now.getMonth() };
+        const currentY = now.getFullYear();
+        const currentM = now.getMonth();
+
+        // Verifica se o estado está diferente do mês real
+        if (state.selectedMonthObj.year !== currentY || state.selectedMonthObj.month !== currentM) {
+            
+            // 1. Atualiza o estado
+            state.selectedMonthObj = { year: currentY, month: currentM };
+            
+            // 2. Atualiza visualmente o Select
             const sel = document.getElementById('monthSelect');
-            if(sel) sel.value = `${now.getFullYear()}-${now.getMonth()}`;
+            if(sel) sel.value = `${currentY}-${currentM}`;
+            
+            // 3. Força recarregamento dos dados do Firebase para o novo mês
             if(window.loadData) await window.loadData();
-        } else {
-            renderDailyDashboard();
-        }
+        } 
+        
+        // Só renderiza depois de garantir que os dados são de HOJE
+        renderDailyDashboard();
     }
     
     // --- MODO EDIÇÃO ---
@@ -92,7 +95,6 @@ export async function switchAdminView(view) {
         if(tb) tb.classList.remove('hidden');
         if(fdsContainer) fdsContainer.classList.remove('hidden');
         if(empWidget) empWidget.classList.remove('hidden');
-        if(inviteWidget) inviteWidget.classList.remove('hidden');
         
         populateEmployeeSelect();
         const select = document.getElementById('employeeSelect');
@@ -107,129 +109,6 @@ export async function switchAdminView(view) {
         if(empWidget) empWidget.classList.add('hidden');
         renderAuditLogs();
     }
-}
-
-// --- WIDGET DE CONVITE (RECUPERADO) ---
-export async function renderInviteWidget() {
-    const container = document.getElementById('inviteWidgetContainer');
-    if (!container) return; // Se não achar a div no HTML, para.
-
-    container.innerHTML = '<div class="text-[9px] text-gray-500 animate-pulse p-2">Carregando convites...</div>';
-
-    try {
-        const q = query(getCompanyCollection("convites"), where("active", "==", true));
-        
-        // Listener em tempo real
-        onSnapshot(q, (snap) => {
-            // Limpa o container
-            container.innerHTML = '';
-            
-            const div = document.createElement('div');
-            div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in shadow-lg";
-
-            if (!snap.empty) {
-                // MODO: LINK ATIVO
-                const inviteCode = snap.docs[0].id;
-                const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
-                
-                div.innerHTML = `
-                    <h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between items-center">
-                        <span><i class="fas fa-link text-emerald-400 mr-1"></i> Convite Ativo</span>
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    </h3>
-                    <div class="flex gap-1 mb-2">
-                        <input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly>
-                        <button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px] active:scale-95 transition-transform"><i class="fas fa-copy"></i></button>
-                    </div>
-                    <button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase transition-colors">
-                        Revogar Link
-                    </button>
-                `;
-                
-                container.appendChild(div);
-
-                document.getElementById('btnCopyInvite').onclick = () => {
-                    navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value);
-                    showNotification("Link copiado!", "success");
-                };
-
-                document.getElementById('btnRevokeInvite').onclick = () => {
-                    askConfirmation("Revogar este convite? O link deixará de funcionar.", async () => {
-                        await updateDoc(getCompanyDoc("convites", inviteCode), { active: false });
-                        showNotification("Convite revogado");
-                    });
-                };
-
-            } else {
-                // MODO: GERAR NOVO
-                div.innerHTML = `
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h3 class="text-[10px] font-bold text-white uppercase"><i class="fas fa-user-plus text-gray-400 mr-1"></i> Novo Colaborador</h3>
-                            <p class="text-[8px] text-gray-500 mt-0.5">Crie um link de cadastro</p>
-                        </div>
-                        <button id="btnGenerateInvite" class="bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-3 rounded text-[9px] font-bold uppercase shadow-lg transition-all active:scale-95">
-                            Gerar Link
-                        </button>
-                    </div>
-                `;
-                container.appendChild(div);
-
-                document.getElementById('btnGenerateInvite').onclick = async () => {
-                    const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-                    try {
-                        await setDoc(getCompanyDoc("convites", code), { 
-                            createdBy: state.currentUser.uid, 
-                            createdAt: serverTimestamp(), 
-                            active: true 
-                        });
-                        showNotification("Link Gerado!");
-                    } catch (e) {
-                        showNotification("Erro ao gerar: " + e.message, "error");
-                    }
-                };
-            }
-        });
-    } catch(e) {
-        container.innerHTML = '<p class="text-[8px] text-red-400">Erro ao carregar convites.</p>';
-        console.error(e);
-    }
-}
-
-// --- FUNÇÃO DE EXCLUSÃO DE ESCALA ---
-async function clearCurrentMonthSchedule() {
-    const m = state.selectedMonthObj;
-    const label = `${monthNames[m.month]}/${m.year}`;
-    
-    askConfirmation(`
-        <span class="text-red-500 font-bold block text-lg mb-2">PERIGO!</span>
-        Deseja <strong class="text-white">EXCLUIR DEFINITIVAMENTE</strong> a escala de ${label}?
-        <br><br>
-        <span class='text-gray-400 text-[10px]'>Isso apagará todos os registros de turno deste mês no banco de dados.</span>
-    `, async () => {
-        try {
-            const batch = writeBatch(db);
-            const docId = `${m.year}-${String(m.month+1).padStart(2,'0')}`;
-            
-            Object.values(state.scheduleData).forEach(user => {
-                const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
-                batch.delete(ref); 
-                user.schedule = Array(32).fill('F');
-            });
-
-            await batch.commit();
-            await addAuditLog("Exclusão de Escala", `Excluiu a escala de ${label}`);
-            
-            showNotification(`Escala de ${label} excluída com sucesso!`);
-            
-            if(currentEditingUid) renderIndividualEditor(currentEditingUid);
-            renderWeekendDuty();
-            
-        } catch(e) {
-            console.error(e);
-            showNotification("Erro ao excluir: " + e.message, "error");
-        }
-    });
 }
 
 // --- DASHBOARD INTELIGENTE ---
@@ -251,24 +130,29 @@ export function renderDailyDashboard() {
     
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
+            // Verifica o status do dia HOJE
             const s = emp.schedule[todayIndex] || 'F';
             let g = 'Off'; 
             let statusText = s;
 
+            // Prioridade para Status Especiais
             if (s === 'FE') {
-                g = 'Ferias';
+                g = 'Ferias'; // Só entra aqui se no dia de HOJE estiver marcado FE
             } else if (s === 'A') {
                 g = 'Afastado';
             } else if (s === 'LM') {
                 g = 'Licenca';
-            } else if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) {
+            } 
+            // Trabalho e Folga
+            else if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) {
                 if (checkIsWorkingNow(emp.horario, currentMinutes)) {
                     g = 'Ativo';
                 } else {
                     g = 'Off';
                     statusText = 'Fora de Turno';
                 }
-            } else if (['F'].includes(s)) {
+            } 
+            else if (['F'].includes(s)) {
                 g = 'Folga';
             }
             
@@ -431,6 +315,28 @@ async function confirmSaveToCloud() {
     });
 }
 
+// --- FUNÇÃO DE EXCLUSÃO (Limpar Mês) ---
+async function clearCurrentMonthSchedule() {
+    const m = state.selectedMonthObj;
+    const label = `${monthNames[m.month]}/${m.year}`;
+    askConfirmation(`Deseja EXCLUIR toda a escala de ${label}?`, async () => {
+        try {
+            const batch = writeBatch(db);
+            const docId = `${m.year}-${String(m.month+1).padStart(2,'0')}`;
+            Object.values(state.scheduleData).forEach(user => {
+                const ref = getCompanySubDoc("escalas", docId, "plantonistas", user.uid);
+                batch.delete(ref);
+                user.schedule = Array(32).fill('F');
+            });
+            await batch.commit();
+            await addAuditLog("Exclusão de Escala", `Excluiu ${label}`);
+            showNotification(`Escala excluída!`);
+            if(currentEditingUid) renderIndividualEditor(currentEditingUid);
+            renderWeekendDuty();
+        } catch(e) { showNotification("Erro: " + e.message, "error"); }
+    });
+}
+
 function renderEditToolbar() {
     const toolbar = document.getElementById('editToolbar');
     if(!toolbar) return;
@@ -446,7 +352,6 @@ function renderEditToolbar() {
     ];
     toolbar.innerHTML = tools.map(t => `<button onclick="window.setEditTool('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-white/5 border ${t.border} flex items-center gap-1.5 hover:bg-white/10 transition-all"><i class="fas ${t.icon} ${t.color} text-[9px]"></i><span class="text-[8px] font-bold text-white uppercase">${t.label}</span></button>`).join('');
     
-    // BOTÃO EXCLUIR MÊS
     const btnClear = document.createElement('button');
     btnClear.className = "px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/50 flex items-center gap-1.5 hover:bg-red-500/20 transition-all ml-auto";
     btnClear.innerHTML = `<i class="fas fa-trash text-red-400 text-[9px]"></i><span class="text-[8px] font-bold text-red-200 uppercase">Excluir Escala</span>`;
@@ -456,6 +361,7 @@ function renderEditToolbar() {
 
 function setEditTool(id) { activeTool = (id === 'null' || id === null) ? null : id; showNotification(activeTool ? `Ferramenta: ${activeTool}` : "Modo Automático"); }
 function initMonthSelector() { const sel = document.getElementById('monthSelect'); if (!sel) return; sel.innerHTML = availableMonths.map(m => { const isSelected = m.year === state.selectedMonthObj.year && m.month === state.selectedMonthObj.month; return `<option value="${m.year}-${m.month}" ${isSelected ? 'selected' : ''}>${monthNames[m.month]} ${m.year}</option>`; }).join(''); sel.onchange = (e) => { const [y, m] = e.target.value.split('-'); state.selectedMonthObj = { year: parseInt(y), month: parseInt(m) }; if (window.loadData) window.loadData(); else location.reload(); }; }
+export async function renderInviteWidget() { const container = document.getElementById('inviteWidgetContainer'); if (!container) return; container.innerHTML = ''; try { const q = query(getCompanyCollection("convites"), where("active", "==", true)); onSnapshot(q, (snap) => { const div = document.createElement('div'); div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in"; if (!snap.empty) { const inviteCode = snap.docs[0].id; const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`; div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between"><span><i class="fas fa-link text-emerald-400 mr-1"></i> Convite Ativo</span></h3><div class="flex gap-1 mb-2"><input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly><button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px]"><i class="fas fa-copy"></i></button></div><button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase transition-colors">Revogar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnCopyInvite').onclick = () => { navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value); showNotification("Link copiado!", "success"); }; document.getElementById('btnRevokeInvite').onclick = () => { askConfirmation("Revogar convite?", async () => { await updateDoc(getCompanyDoc("convites", inviteCode), { active: false }); showNotification("Revogado"); }); }; } else { div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-1">Novo Colaborador</h3><button id="btnGenerateInvite" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-[9px] font-bold uppercase shadow-lg transition-all active:scale-95">Gerar Link</button>`; container.innerHTML = ''; container.appendChild(div); document.getElementById('btnGenerateInvite').onclick = async () => { const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase(); try { await setDoc(getCompanyDoc("convites", code), { createdBy: state.currentUser.uid, createdAt: serverTimestamp(), active: true }); showNotification("Gerado!"); } catch (e) { showNotification("Erro", "error"); } }; } }); } catch(e) {} }
 function openPromoteModal() { const modal = document.getElementById('promoteModal'); const userSelect = document.getElementById('promoteTargetUser'); const roleContainer = document.getElementById('roleOptionsContainer'); if(!userSelect || !modal) return; document.getElementById('selectedRoleKey').value = ""; userSelect.innerHTML = '<option value="">Selecione...</option>'; Object.values(state.scheduleData).sort((a,b)=>a.name.localeCompare(b.name)).forEach(user => { if (user.uid !== state.currentUser.uid) userSelect.innerHTML += `<option value="${user.uid}">${user.name} (${user.cargo || '-'})</option>`; }); roleContainer.innerHTML = ''; Object.entries(HIERARCHY).forEach(([key, config]) => { if (config.level <= 100) { const btn = document.createElement('div'); btn.className = `role-option cursor-pointer w-full p-2 mb-2 rounded border border-white/10 bg-white/5 flex items-center justify-between`; btn.onclick = (e) => window.selectRole(e, key); btn.innerHTML = `<span class="text-[10px] text-white font-bold">${config.label}</span><span class="text-[9px] text-gray-500">${config.level}</span>`; roleContainer.appendChild(btn); } }); modal.classList.remove('hidden'); }
 function selectRole(e, key) { document.querySelectorAll('.role-option').forEach(el => el.classList.remove('border-purple-500', 'bg-purple-500/10')); e.currentTarget.classList.add('border-purple-500', 'bg-purple-500/10'); document.getElementById('selectedRoleKey').value = key; }
 async function confirmPromotion() { const targetUid = document.getElementById('promoteTargetUser').value; const roleKey = document.getElementById('selectedRoleKey').value; if (!targetUid || !roleKey) return showNotification("Preencha todos os campos", "error"); const config = HIERARCHY[roleKey]; const targetUser = Object.values(state.scheduleData).find(u => u.uid === targetUid); askConfirmation(`Promover ${targetUser.name} para ${config.label}?`, async () => { try { await updateDoc(getCompanyDoc("users", targetUid), { cargo: config.label, role: config.role, level: config.level, promotedBy: state.currentUser.email }); document.getElementById('promoteModal').classList.add('hidden'); showNotification("Cargo Atualizado"); addAuditLog("Promoção", `${targetUser.name} -> ${config.label}`); } catch (e) { showNotification("Erro", "error"); } }); }
