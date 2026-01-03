@@ -36,7 +36,7 @@ export function destroyCollabUI() {
 }
 
 function setupEvents() {
-    // CORREÇÃO DO ERRO: VERIFICA SE O ELEMENTO EXISTE ANTES DE ATRIBUIR ONCLICK
+    // CORREÇÃO: VERIFICA SE O ELEMENTO EXISTE ANTES DE ATRIBUIR EVENTOS
     const bNew = document.getElementById('btnNewRequestDynamic'); 
     if(bNew) bNew.onclick = openModal;
     
