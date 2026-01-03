@@ -18,16 +18,17 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 window.db = db;
 
-// --- GERAÇÃO DINÂMICA DE DATAS (CORREÇÃO DE DATA ATUAL) ---
+// --- DATAS DINÂMICAS ---
+// Pega a data exata do computador do usuário agora
 const now = new Date();
 const currentYear = now.getFullYear();
-const currentMonth = now.getMonth(); // 0 = Janeiro, 11 = Dezembro
+const currentMonth = now.getMonth(); // 0 = Janeiro
 
 export const availableMonths = [];
 // Gera lista de meses (Do mês passado até 12 meses à frente)
 const startView = new Date(currentYear, currentMonth - 1, 1);
 
-for (let i = 0; i < 14; i++) {
+for(let i = 0; i < 14; i++) {
     const d = new Date(startView.getFullYear(), startView.getMonth() + i, 1);
     availableMonths.push({ year: d.getFullYear(), month: d.getMonth() });
 }
@@ -38,15 +39,15 @@ export const state = {
     isDualRole: false,
     currentViewMode: 'collab',
     currentUser: null,
-    profile: null,
-    scheduleData: {},
-    // Define o mês inicial como o Mês Atual do sistema
-    selectedMonthObj: { year: currentYear, month: currentMonth },
+    profile: null, 
+    scheduleData: {}, 
+    // INICIALIZA EXATAMENTE NO MÊS ATUAL
+    selectedMonthObj: { year: currentYear, month: currentMonth }, 
     activeRequestType: 'troca_dia_trabalho',
-    companyId: null
+    companyId: null 
 };
 
-// --- HELPERS SAAS ---
+// --- HELPERS ---
 export function getCompanyCollection(path) {
     if (!state.companyId) throw new Error("ID da empresa não definido.");
     return collection(db, "companies", state.companyId, path);
@@ -64,13 +65,11 @@ export function getCompanySubDoc(root, docId, sub, subDocId) {
     return doc(db, "companies", state.companyId, root, docId, sub, subDocId);
 }
 
-// --- CONSTANTES ---
 export const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-// --- UTILS ---
 export function hideLoader() {
     const o = document.getElementById('appLoadingOverlay');
-    if (o) { o.classList.add('opacity-0'); setTimeout(() => o.classList.add('hidden'), 500); }
+    if(o) { o.classList.add('opacity-0'); setTimeout(() => o.classList.add('hidden'), 500); }
 }
 
 export function pad(n) { return n < 10 ? '0' + n : n; }
