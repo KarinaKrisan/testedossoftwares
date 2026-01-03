@@ -32,6 +32,7 @@ export function initAdminUI() {
     initMonthSelector(); 
     renderEmployeeSelectorWidget(); 
 
+    // Força o carregamento da Dashboard com dados ATUAIS
     switchAdminView('Daily');
     
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
@@ -41,9 +42,10 @@ export function initAdminUI() {
     }, 60000);
 }
 
-export function switchAdminView(view) {
+export async function switchAdminView(view) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     
+    // Alterna Telas
     ['Daily', 'Edit', 'Approvals', 'Logs'].forEach(s => {
         const screen = document.getElementById(`screen${s}`);
         if(screen) screen.classList.toggle('hidden', s.toLowerCase() !== view.toLowerCase());
@@ -59,23 +61,36 @@ export function switchAdminView(view) {
     const fdsContainer = document.getElementById('weekendDutyContainer');
     const empWidget = document.getElementById('adminEmployeeWidget');
 
-    // --- MODO DASHBOARD: FORÇA DATA ATUAL ---
+    // --- MODO DASHBOARD: LÓGICA DE CORREÇÃO DE DATA ---
     if (view === 'Daily' || view === 'daily') {
         if(tb) tb.classList.add('hidden');
         if(fdsContainer) fdsContainer.classList.add('hidden');
         if(empWidget) empWidget.classList.add('hidden'); 
         
-        // Se estiver vendo um mês antigo, volta para o atual automaticamente
+        // CORREÇÃO CRÍTICA: Se a view for Dashboard, OBRIGA a ser o mês atual
         const now = new Date();
-        if (state.selectedMonthObj.month !== now.getMonth() || state.selectedMonthObj.year !== now.getFullYear()) {
-            state.selectedMonthObj = { year: now.getFullYear(), month: now.getMonth() };
+        const realYear = now.getFullYear();
+        const realMonth = now.getMonth();
+
+        // Se o estado atual não for o mês real (ex: estava em Dezembro/2025)
+        if (state.selectedMonthObj.year !== realYear || state.selectedMonthObj.month !== realMonth) {
+            console.log("Detectado mês antigo na Dashboard. Atualizando para mês atual...");
+            
+            // 1. Atualiza Estado
+            state.selectedMonthObj = { year: realYear, month: realMonth };
+            
+            // 2. Atualiza o Dropdown Visual
             const sel = document.getElementById('monthSelect');
-            if(sel) sel.value = `${now.getFullYear()}-${now.getMonth()}`;
-            // Recarrega dados se necessário
-            if(window.loadData) window.loadData();
-        } else {
-            renderDailyDashboard();
-        }
+            if(sel) sel.value = `${realYear}-${realMonth}`;
+            
+            // 3. RECARREGA OS DADOS DO FIREBASE (Crucial para os cards corrigirem)
+            if(window.loadData) {
+                await window.loadData(); // Espera carregar
+            }
+        } 
+        
+        // Só renderiza depois de garantir que os dados são do mês atual
+        renderDailyDashboard();
     }
     
     // --- MODO EDIÇÃO ---
@@ -99,7 +114,7 @@ export function switchAdminView(view) {
     }
 }
 
-// --- LÓGICA DO DASHBOARD (STATUS DO DIA) ---
+// --- DASHBOARD (Lê status do dia ATUAL) ---
 export function renderDailyDashboard() {
     const todayIndex = new Date().getDate() - 1; // Dia de hoje (0-30)
     const now = new Date();
@@ -118,14 +133,13 @@ export function renderDailyDashboard() {
     
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
-            // Pega o status EXATO do dia de hoje na escala
+            // Pega o status do dia de HOJE no banco de dados
             const s = emp.schedule[todayIndex] || 'F';
             let g = 'Off'; 
             let statusText = s;
 
-            // Lógica de Status
+            // Se for trabalho, verifica horário
             if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) {
-                // Só conta como "Trabalhando" se estiver dentro do horário
                 if (checkIsWorkingNow(emp.horario, currentMinutes)) {
                     g = 'Ativo';
                 } else {
@@ -134,7 +148,7 @@ export function renderDailyDashboard() {
                 }
             } 
             else if (['F'].includes(s)) g = 'Folga';
-            else if (s === 'FE') g = 'Ferias';
+            else if (s === 'FE') g = 'Ferias'; // Se hoje for FE, cai aqui
             else if (s === 'A') g = 'Afastado';
             else if (s === 'LM') g = 'Licenca';
             
