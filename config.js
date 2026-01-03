@@ -18,17 +18,17 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 window.db = db;
 
-// --- DATAS DINÂMICAS ---
-// Pega a data exata do computador do usuário agora
+// --- GERAÇÃO DE DATAS ---
+// Pega a data real do computador
 const now = new Date();
 const currentYear = now.getFullYear();
 const currentMonth = now.getMonth(); // 0 = Janeiro
 
 export const availableMonths = [];
-// Gera lista de meses (Do mês passado até 12 meses à frente)
+// Gera do mês passado até 12 meses à frente
 const startView = new Date(currentYear, currentMonth - 1, 1);
 
-for(let i = 0; i < 14; i++) {
+for (let i = 0; i < 14; i++) {
     const d = new Date(startView.getFullYear(), startView.getMonth() + i, 1);
     availableMonths.push({ year: d.getFullYear(), month: d.getMonth() });
 }
@@ -39,12 +39,12 @@ export const state = {
     isDualRole: false,
     currentViewMode: 'collab',
     currentUser: null,
-    profile: null, 
-    scheduleData: {}, 
-    // INICIALIZA EXATAMENTE NO MÊS ATUAL
-    selectedMonthObj: { year: currentYear, month: currentMonth }, 
+    profile: null,
+    scheduleData: {},
+    // INICIALIZA COM A DATA DE HOJE
+    selectedMonthObj: { year: currentYear, month: currentMonth },
     activeRequestType: 'troca_dia_trabalho',
-    companyId: null 
+    companyId: null
 };
 
 // --- HELPERS ---
@@ -69,7 +69,7 @@ export const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "J
 
 export function hideLoader() {
     const o = document.getElementById('appLoadingOverlay');
-    if(o) { o.classList.add('opacity-0'); setTimeout(() => o.classList.add('hidden'), 500); }
+    if (o) { o.classList.add('opacity-0'); setTimeout(() => o.classList.add('hidden'), 500); }
 }
 
 export function pad(n) { return n < 10 ? '0' + n : n; }
