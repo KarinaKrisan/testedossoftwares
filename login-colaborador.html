@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acesso Colaborador | Cronos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <link rel="stylesheet" href="styless.css">
+</head>
+<body class="h-screen flex items-center justify-center p-6 relative overflow-hidden bg-black">
+    <div class="absolute inset-0 z-0">
+        <div class="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[120px]"></div>
+    </div>
+
+    <div class="apple-glass w-full max-w-md p-10 relative z-10 rounded-3xl">
+        <div class="text-center mb-10">
+            <div class="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-white/10">
+                <i class="fas fa-user-astronaut text-2xl text-blue-400"></i>
+            </div>
+            <h1 class="text-2xl font-bold text-white tracking-tight">Área do Colaborador</h1>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-widest mt-2">Acesse sua escala</p>
+        </div>
+
+        <form id="loginCollabForm" class="space-y-6">
+            <div class="space-y-2">
+                <label class="text-[10px] font-bold text-gray-500 uppercase ml-1 tracking-widest">E-mail Corporativo</label>
+                <input type="email" id="emailInput" class="w-full bg-white/5 border border-white/10 text-white p-4 rounded-xl outline-none focus:border-blue-500/50 transition-all text-sm" placeholder="nome@empresa.com" required>
+            </div>
+            
+            <div class="space-y-2">
+                <label class="text-[10px] font-bold text-gray-500 uppercase ml-1 tracking-widest">Senha</label>
+                <div class="relative">
+                    <input type="password" id="passwordInput" class="w-full bg-white/5 border border-white/10 text-white p-4 rounded-xl outline-none focus:border-blue-500/50 transition-all text-sm" placeholder="••••••••" required>
+                    <button type="button" id="togglePassword" class="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+                <div class="text-right mt-1">
+                    <button type="button" id="btnForgotCollab" class="text-[9px] text-blue-400 hover:text-blue-300 transition-colors font-bold uppercase tracking-wider">
+                        Esqueci minha senha
+                    </button>
+                </div>
+            </div>
+
+            <div id="loginError" class="hidden text-red-400 text-[11px] text-center font-medium bg-red-500/10 p-3 rounded-lg border border-red-500/20"></div>
+
+            <button type="submit" id="btnLogin" class="w-full py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest text-xs">
+                Entrar
+            </button>
+        </form>
+
+        <div class="mt-8 text-center border-t border-white/5 pt-6">
+            <a href="start.html" class="text-[10px] text-gray-500 hover:text-white transition-colors font-bold uppercase tracking-widest"><i class="fas fa-arrow-left mr-2"></i> Voltar ao início</a>
+        </div>
+    </div>
+
+    <div id="customAlertModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity">
+        <div id="modalContent" class="premium-glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl transform transition-all scale-95 opacity-0 text-center bg-[#1a1a1a]/90">
+            <div id="modalIconBg" class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
+                <i id="modalIcon" class="fas fa-envelope text-2xl text-blue-400"></i>
+            </div>
+            <h3 id="modalTitle" class="text-lg font-bold text-white mb-2 tracking-tight">Título</h3>
+            <p id="modalMessage" class="text-xs text-gray-400 mb-6 leading-relaxed">Mensagem</p>
+            <button id="modalOkBtn" class="w-full py-3.5 rounded-xl bg-blue-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20">
+                Entendido
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, auth } from './config.js';
+        import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+        import { doc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+        function showCustomAlert(title, message, type = 'success') {
+            const modal = document.getElementById('customAlertModal');
+            const content = document.getElementById('modalContent');
+            const icon = document.getElementById('modalIcon');
+            const iconBg = document.getElementById('modalIconBg');
+            const titleEl = document.getElementById('modalTitle');
+            const msgEl = document.getElementById('modalMessage');
+            const btn = document.getElementById('modalOkBtn');
+
+            if (type === 'error') {
+                icon.className = 'fas fa-exclamation-triangle text-2xl text-red-400';
+                iconBg.className = 'w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/30';
+                btn.className = 'w-full py-3.5 rounded-xl bg-red-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-red-500 transition-colors shadow-lg';
+            } else {
+                icon.className = 'fas fa-check text-2xl text-blue-400';
+                iconBg.className = 'w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30';
+                btn.className = 'w-full py-3.5 rounded-xl bg-blue-600 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-colors shadow-lg';
+            }
+
+            titleEl.innerText = title;
+            msgEl.innerText = message;
+            modal.classList.remove('hidden');
+            setTimeout(() => { content.classList.replace('opacity-0', 'opacity-100'); content.classList.replace('scale-95', 'scale-100'); }, 10);
+            btn.onclick = () => { content.classList.replace('opacity-100', 'opacity-0'); content.classList.replace('scale-100', 'scale-95'); setTimeout(() => modal.classList.add('hidden'), 300); };
+        }
+
+        document.getElementById('btnForgotCollab').onclick = async () => {
+            const email = document.getElementById('emailInput').value;
+            if (!email) { showCustomAlert("Atenção", "Por favor, preencha o seu e-mail corporativo.", "error"); return; }
+            try {
+                await sendPasswordResetEmail(auth, email);
+                showCustomAlert("Link Enviado", "Verifique seu e-mail para redefinir a senha.");
+            } catch (e) { showCustomAlert("Erro no Envio", "Verifique o e-mail digitado.", "error"); }
+        };
+
+        // --- LÓGICA DE LOGIN CORRIGIDA ---
+        document.getElementById('loginCollabForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btnLogin');
+            const errDiv = document.getElementById('loginError');
+            
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Autenticando...'; 
+            btn.disabled = true;
+            errDiv.classList.add('hidden');
+
+            try {
+                // 1. Autentica no Firebase Auth
+                const cred = await signInWithEmailAndPassword(auth, document.getElementById('emailInput').value, document.getElementById('passwordInput').value);
+                
+                // 2. Busca vínculo empresarial (sys_users)
+                const sysSnap = await getDoc(doc(db, "sys_users", cred.user.uid));
+                if (!sysSnap.exists()) {
+                    await signOut(auth);
+                    throw new Error("Usuário sem vínculo empresarial.");
+                }
+
+                const companyId = sysSnap.data().companyId;
+                
+                // 3. Validação do Perfil: Busca na coleção 'users' (PADRÃO UNIFICADO)
+                // Se o signup salvou em 'users', aqui precisa ler de 'users'
+                const userSnap = await getDoc(doc(db, "companies", companyId, "users", cred.user.uid));
+
+                if (userSnap.exists()) {
+                    window.location.href = "index.html";
+                } else {
+                    // Se não achou em users, verifica se existe em 'colaboradores' (Legado) para dar um erro mais claro
+                    // ou simplesmente nega o acesso.
+                    await signOut(auth);
+                    throw new Error("Perfil de usuário não encontrado na base de dados da empresa.");
+                }
+
+            } catch (error) {
+                console.error(error);
+                btn.innerHTML = 'Entrar'; 
+                btn.disabled = false;
+                
+                let msg = error.message;
+                if(error.code === 'auth/invalid-credential') msg = "E-mail ou senha incorretos.";
+                if(error.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
+                
+                errDiv.innerText = msg; 
+                errDiv.classList.remove('hidden');
+            }
+        });
+
+        const toggle = document.getElementById('togglePassword');
+        const passInput = document.getElementById('passwordInput');
+        toggle.addEventListener('click', () => {
+            const type = passInput.type === 'password' ? 'text' : 'password';
+            passInput.type = type;
+            toggle.innerHTML = type === 'password' ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+        });
+    </script>
+</body>
+</html>
