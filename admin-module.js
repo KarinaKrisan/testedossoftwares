@@ -7,126 +7,45 @@ let dailyUpdateInterval = null;
 let activeTool = null;
 let currentEditingUid = null;
 
-// --- EXPORTAÇÕES GLOBAIS ---
-window.openPromoteModal = openPromoteModal;
-window.confirmPromotion = confirmPromotion;
-window.selectRole = selectRole;
-window.approveRequest = approveRequest;
-window.rejectRequest = rejectRequest;
-window.setEditTool = setEditTool;
-window.askConfirmation = askConfirmation;
-window.handleAdminCellClick = handleAdminCellClick;
-window.loadSelectedUser = loadSelectedUser;
-// Expor a função de limpeza explicitamente
-window.clearCurrentMonthSchedule = clearCurrentMonthSchedule;
+// =============================================================================
+// 1. DEFINIÇÃO DAS FUNÇÕES (Declaradas antes de serem exportadas)
+// =============================================================================
 
-// --- INICIALIZAÇÃO ---
-export function initAdminUI() {
-    ['adminTabNav', 'adminControls', 'editToolbar'].forEach(id => document.getElementById(id)?.classList.remove('hidden'));
-    ['collabControls'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
-
-    const btnSave = document.getElementById('btnSaveConfirm');
-    if (btnSave) btnSave.onclick = confirmSaveToCloud;
-
-    renderEditToolbar();
-    initApprovalsTab();
-    initMonthSelector();
-    renderEmployeeSelectorWidget();
-    
-    // --- RENDERIZA O CONVITE AQUI ---
-    renderInviteWidget();
-
-    // Força Dashboard na data atual
-    switchAdminView('Daily');
-
-    if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
-    dailyUpdateInterval = setInterval(() => {
-        const screen = document.getElementById('screenDaily');
-        if (screen && !screen.classList.contains('hidden')) renderDailyDashboard();
-    }, 60000);
-}
-
-export async function switchAdminView(view) {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    ['Daily', 'Edit', 'Approvals', 'Logs'].forEach(s => {
-        const screen = document.getElementById(`screen${s}`);
-        if (screen) screen.classList.toggle('hidden', s.toLowerCase() !== view.toLowerCase());
-
-        const btn = document.getElementById(`btnNav${s}`);
-        if (btn) {
-            btn.classList.remove('active', 'bg-purple-600/20', 'text-purple-400');
-            if (s.toLowerCase() === view.toLowerCase()) btn.classList.add('active', 'bg-purple-600/20', 'text-purple-400');
-        }
-    });
-
-    const tb = document.getElementById('editToolbar');
-    const fdsContainer = document.getElementById('weekendDutyContainer');
-    const empWidget = document.getElementById('adminEmployeeWidget');
-    const inviteWidget = document.getElementById('inviteWidgetContainer'); // Pega o container do convite
-
-    // --- MODO DASHBOARD ---
-    if (view === 'Daily' || view === 'daily') {
-        if (tb) tb.classList.add('hidden');
-        if (fdsContainer) fdsContainer.classList.add('hidden');
-        if (empWidget) empWidget.classList.add('hidden');
-        
-        // Garante que o convite apareça se estiver na barra lateral
-        if (inviteWidget) inviteWidget.classList.remove('hidden');
-
-        // FORÇA ATUALIZAÇÃO PARA MÊS ATUAL
-        const now = new Date();
-        if (state.selectedMonthObj.year !== now.getFullYear() || state.selectedMonthObj.month !== now.getMonth()) {
-            state.selectedMonthObj = { year: now.getFullYear(), month: now.getMonth() };
-            const sel = document.getElementById('monthSelect');
-            if (sel) sel.value = `${now.getFullYear()}-${now.getMonth()}`;
-            if (window.loadData) await window.loadData();
-        } else {
-            renderDailyDashboard();
-        }
-    }
-
-    // --- MODO EDIÇÃO ---
-    if (view === 'Edit' || view === 'edit') {
-        if (tb) tb.classList.remove('hidden');
-        if (fdsContainer) fdsContainer.classList.remove('hidden');
-        if (empWidget) empWidget.classList.remove('hidden');
-        if (inviteWidget) inviteWidget.classList.remove('hidden');
-
-        populateEmployeeSelect();
-        const select = document.getElementById('employeeSelect');
-        if (select && select.value) { loadSelectedUser(select.value); }
-        else { document.getElementById('calendarContainer').innerHTML = '<div class="premium-glass p-10 text-center text-gray-500 text-xs uppercase tracking-widest border border-white/5 rounded-xl"><i class="fas fa-user-edit text-3xl mb-3 text-purple-400"></i><br>Selecione um colaborador na barra lateral</div>'; }
-
-        renderWeekendDuty();
-    }
-
-    if (view === 'Logs' || view === 'logs') {
-        if (tb) tb.classList.add('hidden');
-        if (empWidget) empWidget.classList.add('hidden');
-        renderAuditLogs();
-    }
-}
-
-// --- WIDGET DE CONVITE (CORRIGIDO) ---
-export async function renderInviteWidget() {
+// --- WIDGET DE CONVITE (Lógica Reforçada) ---
+async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
-    if (!container) return;
+    
+    // Se o container não existir no HTML, tenta achar o pai e criar
+    if (!container) {
+        const parent = document.getElementById('adminControls');
+        if(parent) {
+            const newDiv = document.createElement('div');
+            newDiv.id = 'inviteWidgetContainer';
+            newDiv.className = "mb-4";
+            parent.prepend(newDiv);
+            // Chama recursivamente agora que existe
+            return renderInviteWidget();
+        }
+        return; 
+    }
 
-    container.innerHTML = '<div class="text-[9px] text-gray-500 animate-pulse p-2">Carregando...</div>';
+    // Feedback visual inicial
+    container.innerHTML = '<div class="text-[9px] text-gray-500 animate-pulse p-2">Sincronizando convites...</div>';
 
     try {
         const q = query(getCompanyCollection("convites"), where("active", "==", true));
         
         onSnapshot(q, (snap) => {
-            container.innerHTML = ''; // Limpa antes de redesenhar
+            container.innerHTML = ''; // Limpa o "Carregando"
             const div = document.createElement('div');
             div.className = "premium-glass p-3 border-l-4 border-emerald-500 mb-4 animate-fade-in shadow-lg";
 
             if (!snap.empty) {
-                // MODO: LINK ATIVO
+                // --- CENÁRIO 1: JÁ EXISTE UM LINK ATIVO ---
                 const inviteCode = snap.docs[0].id;
-                const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
+                // Constrói o link baseado na URL atual
+                const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+                const inviteLink = `${baseUrl}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
                 
                 div.innerHTML = `
                     <h3 class="text-[10px] font-bold text-white uppercase mb-2 flex justify-between items-center">
@@ -141,23 +60,27 @@ export async function renderInviteWidget() {
                         Revogar Link
                     </button>
                 `;
-                
                 container.appendChild(div);
 
-                document.getElementById('btnCopyInvite').onclick = () => {
-                    navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value);
+                // Listeners
+                const btnCopy = document.getElementById('btnCopyInvite');
+                if(btnCopy) btnCopy.onclick = () => {
+                    const input = document.getElementById("inviteLinkInput");
+                    input.select();
+                    navigator.clipboard.writeText(input.value);
                     showNotification("Link copiado!", "success");
                 };
 
-                document.getElementById('btnRevokeInvite').onclick = () => {
-                    askConfirmation("Revogar este convite?", async () => {
+                const btnRevoke = document.getElementById('btnRevokeInvite');
+                if(btnRevoke) btnRevoke.onclick = () => {
+                    askConfirmation("Revogar este convite? O link deixará de funcionar.", async () => {
                         await updateDoc(getCompanyDoc("convites", inviteCode), { active: false });
                         showNotification("Convite revogado");
                     });
                 };
 
             } else {
-                // MODO: GERAR NOVO
+                // --- CENÁRIO 2: NENHUM LINK ATIVO (MOSTRAR BOTÃO GERAR) ---
                 div.innerHTML = `
                     <div class="flex justify-between items-center">
                         <div>
@@ -171,7 +94,8 @@ export async function renderInviteWidget() {
                 `;
                 container.appendChild(div);
 
-                document.getElementById('btnGenerateInvite').onclick = async () => {
+                const btnGen = document.getElementById('btnGenerateInvite');
+                if(btnGen) btnGen.onclick = async () => {
                     const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
                     try {
                         await setDoc(getCompanyDoc("convites", code), { 
@@ -179,20 +103,25 @@ export async function renderInviteWidget() {
                             createdAt: serverTimestamp(), 
                             active: true 
                         });
-                        showNotification("Link Gerado!");
+                        showNotification("Link Gerado com Sucesso!");
                     } catch (e) {
+                        console.error(e);
                         showNotification("Erro ao gerar: " + e.message, "error");
                     }
                 };
             }
+        }, (error) => {
+            console.error("Erro no listener de convites:", error);
+            // Fallback em caso de erro de permissão ou rede
+            container.innerHTML = `<div class="premium-glass p-3 border-l-4 border-red-500 mb-4"><p class="text-[9px] text-red-300">Erro ao carregar sistema de convites.</p></div>`;
         });
     } catch(e) {
+        console.error("Erro fatal no widget:", e);
         container.innerHTML = '';
-        console.error(e);
     }
 }
 
-// --- FUNÇÃO DE EXCLUSÃO ---
+// --- FUNÇÃO DE EXCLUSÃO (Limpar Mês) ---
 async function clearCurrentMonthSchedule() {
     const m = state.selectedMonthObj;
     const label = `${monthNames[m.month]}/${m.year}`;
@@ -201,7 +130,7 @@ async function clearCurrentMonthSchedule() {
         <span class="text-red-500 font-bold block text-lg mb-2">PERIGO!</span>
         Deseja <strong class="text-white">EXCLUIR DEFINITIVAMENTE</strong> a escala de ${label}?
         <br><br>
-        <span class='text-gray-400 text-[10px]'>Isso apagará todos os registros do banco de dados.</span>
+        <span class='text-gray-400 text-[10px]'>Isso apagará todos os registros de turno deste mês.</span>
     `, async () => {
         try {
             const batch = writeBatch(db);
@@ -228,11 +157,11 @@ async function clearCurrentMonthSchedule() {
     });
 }
 
-// --- DASHBOARD (LÓGICA DE FÉRIAS CORRIGIDA) ---
-export function renderDailyDashboard() {
-    const todayIndex = new Date().getDate() - 1; // 0 = Dia 1
+// --- DASHBOARD INTELIGENTE ---
+function renderDailyDashboard() {
+    const todayIndex = new Date().getDate() - 1; 
     const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes(); 
 
     const definitions = {
         'Ativo': { label: 'Trabalhando', color: 'emerald', icon: 'fa-briefcase' },
@@ -247,19 +176,14 @@ export function renderDailyDashboard() {
 
     if (state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
-            // Pega o status do dia de HOJE
             const s = emp.schedule[todayIndex] || 'F';
             let g = 'Off';
             let statusText = s;
 
-            // Prioridades de Status
-            if (s === 'FE') {
-                g = 'Ferias'; // Só entra aqui se HOJE for FE
-            } else if (s === 'A') {
-                g = 'Afastado';
-            } else if (s === 'LM') {
-                g = 'Licenca';
-            } else if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) {
+            if (s === 'FE') { g = 'Ferias'; } 
+            else if (s === 'A') { g = 'Afastado'; } 
+            else if (s === 'LM') { g = 'Licenca'; } 
+            else if (['T', 'P', 'MT', 'N', 'D', 'FS', 'FD'].includes(s)) {
                 if (checkIsWorkingNow(emp.horario, currentMinutes)) {
                     g = 'Ativo';
                 } else {
@@ -276,8 +200,8 @@ export function renderDailyDashboard() {
 
     const gridContainer = document.getElementById('dailyGrid');
     if (gridContainer) {
-        document.getElementById('dailyStats').innerHTML = '';
-        document.getElementById('dailyStats').className = 'hidden';
+        const stats = document.getElementById('dailyStats');
+        if(stats) { stats.innerHTML = ''; stats.className = 'hidden'; }
 
         gridContainer.className = "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4";
         gridContainer.innerHTML = Object.keys(definitions).map(key => {
@@ -327,6 +251,7 @@ function checkIsWorkingNow(horarioString, currentMinutes) {
 function renderEmployeeSelectorWidget() {
     const container = document.getElementById('adminControls');
     if (!container || document.getElementById('adminEmployeeWidget')) return;
+    
     const widget = document.createElement('div');
     widget.id = 'adminEmployeeWidget';
     widget.className = "premium-glass p-4 rounded-2xl border border-white/10 hidden animate-fade-in mb-4";
@@ -335,16 +260,17 @@ function renderEmployeeSelectorWidget() {
         <select id="employeeSelect" class="w-full bg-black/40 border border-white/10 text-white text-xs p-3 rounded-xl outline-none focus:border-purple-500 transition-all cursor-pointer">
             <option value="">Carregando...</option>
         </select>`;
-    // Insere o widget no topo, mas DEPOIS do widget de convite se ele existir
-    const inviteW = document.getElementById('inviteWidgetContainer');
-    if (inviteW && inviteW.nextSibling) {
-        container.insertBefore(widget, inviteW.nextSibling);
+    
+    // Insere DEPOIS do widget de convite para não empurrá-lo
+    const inviteWidget = document.getElementById('inviteWidgetContainer');
+    if(inviteWidget) {
+        inviteWidget.insertAdjacentElement('afterend', widget);
     } else {
-        container.appendChild(widget);
+        container.prepend(widget);
     }
 }
 
-export function populateEmployeeSelect() {
+function populateEmployeeSelect() {
     const s = document.getElementById('employeeSelect');
     if (!s) return;
     const currentValue = s.value;
@@ -407,7 +333,7 @@ function renderIndividualEditor(name) {
     document.getElementById('btnSaveIndividual').onclick = confirmSaveToCloud;
 }
 
-export function handleAdminCellClick(name, i) {
+function handleAdminCellClick(name, i) {
     const user = state.scheduleData[name];
     if (!user) return;
     const seq = ['T', 'F', 'FS', 'FD', 'FE', 'A', 'LM'];
@@ -468,3 +394,17 @@ function initApprovalsTab() { const list = document.getElementById('adminRequest
 async function approveRequest(id) { await updateDoc(getCompanyDoc("solicitacoes", id), { status: 'approved' }); showNotification("Aprovado"); }
 async function rejectRequest(id) { await updateDoc(getCompanyDoc("solicitacoes", id), { status: 'rejected' }); showNotification("Recusado"); }
 function askConfirmation(msg, onConfirm) { const modal = document.getElementById('confirmModal') || document.getElementById('customConfirmModal'); if (!modal) { if (confirm(msg)) onConfirm(); return; } document.getElementById('modalMessage').innerHTML = msg; modal.classList.remove('hidden'); const btnConfirm = document.getElementById('modalConfirm'); const newBtn = btnConfirm.cloneNode(true); btnConfirm.parentNode.replaceChild(newBtn, btnConfirm); newBtn.onclick = () => { modal.classList.add('hidden'); onConfirm(); }; document.getElementById('modalCancel').onclick = () => modal.classList.add('hidden'); }
+
+// =============================================================================
+// 2. EXPORTAÇÕES (NO FINAL)
+// =============================================================================
+window.openPromoteModal = openPromoteModal;
+window.confirmPromotion = confirmPromotion;
+window.selectRole = selectRole;
+window.approveRequest = approveRequest;
+window.rejectRequest = rejectRequest;
+window.setEditTool = setEditTool;
+window.askConfirmation = askConfirmation;
+window.handleAdminCellClick = handleAdminCellClick;
+window.loadSelectedUser = loadSelectedUser;
+window.clearCurrentMonthSchedule = clearCurrentMonthSchedule; // Agora a função existe antes de ser atribuída
