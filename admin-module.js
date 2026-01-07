@@ -1,6 +1,6 @@
 // admin-module.js
 import { db, state, getCompanyCollection, getCompanyDoc, getCompanySubDoc, HIERARCHY } from './config.js';
-import { showNotification, updateCalendar, renderWeekendDuty } from './ui.js';
+import { showNotification, updateCalendar } from './ui.js';
 import { doc, setDoc, serverTimestamp, query, orderBy, onSnapshot, updateDoc, where, getDocs, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 let allLoadedLogs = [];
@@ -8,6 +8,7 @@ let dailyUpdateInterval = null;
 let activeTool = null; 
 
 // --- EXPORTAÇÕES GLOBAIS (ESSENCIAIS PARA O HTML FUNCIONAR) ---
+// Vincula funções ao objeto window para serem acessíveis via onclick="" no HTML
 window.openPromoteModal = openPromoteModal;
 window.confirmPromotion = confirmPromotion;
 window.selectRole = selectRole;
@@ -15,6 +16,7 @@ window.runLegacyMigration = runLegacyMigration;
 window.approveRequest = approveRequest;
 window.rejectRequest = rejectRequest;
 window.setEditTool = setEditTool;
+window.renderInviteWidget = renderInviteWidget; // Adicionado para permitir recarregar em caso de erro
 
 // --- INICIALIZAÇÃO E NAVEGAÇÃO ---
 export function switchAdminView(view) {
@@ -52,7 +54,7 @@ export function initAdminUI() {
     populateEmployeeSelect();
     renderEditToolbar(); 
     initApprovalsTab(); 
-    renderInviteWidget(); 
+    renderInviteWidget(); // <--- AQUI CHAMA A VERSÃO CORRIGIDA
     renderMigrationTool();
     
     // Inicia ouvintes de logs imediatamente
@@ -67,6 +69,133 @@ export function initAdminUI() {
     }, 60000);
 }
 
+// --- WIDGET DE CONVITES (CORRIGIDO E OTIMIZADO) ---
+async function renderInviteWidget() {
+    // 1. Busca o container correto definido no index.html
+    const container = document.getElementById('inviteWidgetContainer');
+    if (!container) return; 
+
+    // 2. Define um estado de carregamento visual para evitar a "barra vazia"
+    container.innerHTML = `
+        <div class="premium-glass p-4 rounded-xl border border-white/10 animate-pulse flex justify-center">
+            <span class="text-[10px] text-gray-500 uppercase tracking-widest"><i class="fas fa-circle-notch fa-spin mr-2"></i> Verificando Convites...</span>
+        </div>
+    `;
+
+    try {
+        // 3. Busca convites ativos no Firebase
+        const q = query(getCompanyCollection("convites"), where("active", "==", true));
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+            // === CENÁRIO A: EXISTE UM CONVITE ATIVO ===
+            const inviteCode = snap.docs[0].id;
+            // Monta o link completo
+            const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
+
+            container.innerHTML = `
+                <div class="premium-glass p-4 rounded-xl border-l-4 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+                            <i class="fas fa-ticket-alt mr-1"></i> Convite Ativo
+                        </h3>
+                        <span class="text-[8px] bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded border border-emerald-500/20 animate-pulse">
+                            Aguardando cadastro
+                        </span>
+                    </div>
+                    
+                    <div class="flex gap-2 mb-3">
+                        <div class="relative w-full">
+                            <input type="text" value="${inviteLink}" id="inviteLinkInput" class="w-full bg-black/40 border border-white/10 text-gray-300 font-mono text-[9px] p-3 rounded-lg outline-none focus:border-emerald-500/50 transition-all pr-10" readonly>
+                            <div class="absolute right-3 top-3 text-gray-600">
+                                <i class="fas fa-link text-xs"></i>
+                            </div>
+                        </div>
+                        <button id="btnCopyInvite" class="bg-white/5 hover:bg-white/10 border border-white/10 text-white px-4 rounded-lg transition-all active:scale-95 group relative">
+                            <i class="fas fa-copy text-gray-400 group-hover:text-white transition-colors"></i>
+                        </button>
+                    </div>
+
+                    <button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-2 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all">
+                        <i class="fas fa-ban mr-1"></i> Revogar / Cancelar Link
+                    </button>
+                </div>
+            `;
+
+            // Adiciona os eventos
+            document.getElementById('btnCopyInvite').onclick = () => {
+                const input = document.getElementById("inviteLinkInput");
+                input.select();
+                input.setSelectionRange(0, 99999); // Para mobile
+                navigator.clipboard.writeText(input.value);
+                showNotification("Link copiado para a área de transferência!", "success");
+            };
+
+            document.getElementById('btnRevokeInvite').onclick = () => {
+                askConfirmation("Tem certeza? O link deixará de funcionar imediatamente.", async () => {
+                    await updateDoc(getCompanyDoc("convites", inviteCode), { active: false });
+                    showNotification("Convite revogado.", "success");
+                    renderInviteWidget(); // Recarrega o widget
+                });
+            };
+
+        } else {
+            // === CENÁRIO B: NENHUM CONVITE (BOTÃO GERAR) ===
+            container.innerHTML = `
+                <div class="premium-glass p-4 rounded-xl border border-white/5 border-dashed hover:border-white/10 transition-all group">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest group-hover:text-white transition-colors">
+                            <i class="fas fa-user-plus mr-1"></i> Novo Colaborador
+                        </h3>
+                    </div>
+                    <p class="text-[9px] text-gray-500 mb-3 leading-relaxed">
+                        Gere um link único para permitir que um funcionário crie sua conta vinculada a esta empresa.
+                    </p>
+                    <button id="btnGenerateInvite" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-blue-900/20 active:scale-95 transition-all">
+                        <i class="fas fa-magic mr-2"></i> Gerar Link de Convite
+                    </button>
+                </div>
+            `;
+
+            // Adiciona o evento de gerar
+            document.getElementById('btnGenerateInvite').onclick = async () => {
+                const btn = document.getElementById('btnGenerateInvite');
+                btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i> Gerando...';
+                btn.disabled = true;
+
+                try {
+                    const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+                    
+                    // Salva o convite no banco
+                    await setDoc(getCompanyDoc("convites", code), { 
+                        createdBy: state.currentUser.uid, 
+                        createdAt: serverTimestamp(), 
+                        active: true,
+                        companyName: state.profile?.companyName || "Cronos System"
+                    });
+
+                    showNotification("Link gerado com sucesso!", "success");
+                    renderInviteWidget(); // Atualiza a tela
+                } catch (error) {
+                    console.error(error);
+                    showNotification("Erro ao gerar convite.", "error");
+                    btn.innerHTML = 'Tentar Novamente';
+                    btn.disabled = false;
+                }
+            };
+        }
+
+    } catch (e) {
+        console.error("Erro no widget de convite:", e);
+        container.innerHTML = `
+            <div class="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-center">
+                <p class="text-[9px] text-red-400">Erro ao carregar sistema de convites.</p>
+                <button onclick="renderInviteWidget()" class="mt-2 text-[9px] text-white underline">Tentar novamente</button>
+            </div>
+        `;
+    }
+}
+
 // --- GESTÃO DE CARGOS (Modal) ---
 function openPromoteModal() {
     const modal = document.getElementById('promoteModal');
@@ -78,17 +207,19 @@ function openPromoteModal() {
     
     // Popula usuários
     userSelect.innerHTML = '<option value="">Selecione um colaborador...</option>';
-    Object.values(state.scheduleData).sort((a,b)=>a.name.localeCompare(b.name)).forEach(user => {
-        // Exibe todos, exceto o próprio usuário logado (para evitar auto-remoção de admin)
-        if (user.uid !== state.currentUser.uid) {
-            userSelect.innerHTML += `<option value="${user.uid}">${user.name} (${user.cargo || 'S/ Cargo'})</option>`;
-        }
-    });
+    if(state.scheduleData) {
+        Object.values(state.scheduleData).sort((a,b)=>a.name.localeCompare(b.name)).forEach(user => {
+            // Exibe todos, exceto o próprio usuário logado
+            if (user.uid !== state.currentUser.uid) {
+                userSelect.innerHTML += `<option value="${user.uid}">${user.name} (${user.cargo || 'S/ Cargo'})</option>`;
+            }
+        });
+    }
 
     // Popula cargos (Botões visuais)
     roleContainer.innerHTML = '';
     Object.entries(HIERARCHY).forEach(([key, config]) => {
-        // Só mostra cargos abaixo de CEO para evitar criação acidental de superusers
+        // Só mostra cargos abaixo de CEO
         if (config.level <= 100) { 
             const btn = document.createElement('div');
             // Estilo do botão de opção
@@ -149,7 +280,7 @@ async function confirmPromotion() {
     const config = HIERARCHY[roleKey];
     const targetUser = Object.values(state.scheduleData).find(u => u.uid === targetUid);
 
-    // Modal de Confirmação Nativo
+    // Modal de Confirmação
     askConfirmation(
         `Alterar cargo de <strong class="text-white">${targetUser.name}</strong> para <strong class="text-purple-400">${config.label}</strong>?`, 
         async () => {
@@ -160,12 +291,12 @@ async function confirmPromotion() {
                     role: config.role,
                     level: config.level,
                     updatedAt: serverTimestamp(),
-                    _claimsRefresh: Date.now(), // Força refresh de token se usar Custom Claims
+                    _claimsRefresh: Date.now(), // Força refresh de token
                     promotedBy: state.currentUser.email
                 });
 
                 document.getElementById('promoteModal').classList.add('hidden');
-                showSuccessAnim("Cargo Atualizado");
+                showNotification("Cargo Atualizado", "success");
                 
                 // Gera Log de Auditoria
                 await addAuditLog("Gestão de Equipe", `Alterou ${targetUser.name} para ${config.label}`);
@@ -178,7 +309,7 @@ async function confirmPromotion() {
     );
 }
 
-// --- AUDIT LOGS (CORRIGIDO) ---
+// --- AUDIT LOGS ---
 async function internalApplyLogFilter() {
     // Escuta em tempo real a coleção logs_auditoria
     const q = query(getCompanyCollection("logs_auditoria"), orderBy("timestamp", "desc"));
@@ -270,13 +401,12 @@ async function addAuditLog(action, target) {
             target: target,
             timestamp: serverTimestamp()
         });
-        // Não precisa chamar renderAuditLogs aqui, o onSnapshot cuidará disso
     } catch(e) {
         console.error("Erro ao gravar log:", e);
     }
 }
 
-// --- RESTO DAS FUNÇÕES (Dashboard, Ferramentas, etc.) ---
+// --- FERRAMENTAS ---
 
 function renderMigrationTool() {
     const container = document.getElementById('adminControls');
@@ -303,7 +433,7 @@ async function runLegacyMigration() {
             }, { merge: true });
             count++;
         }
-        showSuccessAnim(`${count} Perfis Recuperados`);
+        showNotification(`${count} Perfis Recuperados`, "success");
         setTimeout(() => location.reload(), 2000);
     } catch(e) { console.error(e); showNotification("Erro: " + e.message, "error"); }
 }
@@ -349,7 +479,7 @@ async function confirmSaveToCloud() {
             const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
             await setDoc(getCompanySubDoc("escalas", docId, "plantonistas", user.uid), { calculatedSchedule: safeSchedule }, { merge: true });
             await addAuditLog("Edição de Escala", emp);
-            showSuccessAnim("Salvo");
+            showNotification("Salvo com sucesso", "success");
             user.schedule = safeSchedule;
             renderDailyDashboard();
         } catch(e) { showNotification(e.message, "error"); }
@@ -362,6 +492,12 @@ function initApprovalsTab() {
     const docId = `${state.selectedMonthObj.year}-${String(state.selectedMonthObj.month+1).padStart(2,'0')}`;
     const q = query(getCompanyCollection("solicitacoes"), where("monthId", "==", docId), where("status", "==", "pending_leader"));
     onSnapshot(q, (snap) => {
+        const badge = document.getElementById('notificationBadge');
+        if(badge) {
+             if(snap.empty) badge.classList.add('hidden');
+             else badge.classList.remove('hidden');
+        }
+
         if(snap.empty) { list.innerHTML = '<p class="text-center text-gray-500 text-[10px]">Nada pendente.</p>'; } else {
             list.innerHTML = snap.docs.map(d => {
                 const r = d.data();
@@ -385,48 +521,16 @@ function askConfirmation(message, onConfirm) {
     document.getElementById('modalCancel').onclick = () => modal.classList.add('hidden');
 }
 
-function showSuccessAnim(text) {
-    const successModal = document.getElementById('successAnimModal');
-    if (!successModal) return;
-    successModal.querySelector('h3').innerText = text;
-    successModal.classList.remove('hidden');
-    setTimeout(() => successModal.classList.add('hidden'), 2000);
-}
-
-async function renderInviteWidget() {
-    const container = document.getElementById('inviteWidgetContainer') || document.getElementById('adminControls');
-    if (!container) return;
-    let div = document.getElementById('inviteWidgetCard') || document.createElement('div');
-    if (!div.id) { div.id = 'inviteWidgetCard'; div.className = "premium-glass p-3 mt-4 border-l-4 border-emerald-500 mb-4"; container.prepend(div); }
-
-    try {
-        const q = query(getCompanyCollection("convites"), where("active", "==", true));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-            const inviteCode = snap.docs[0].id;
-            const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
-            div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-1 flex justify-between"><span><i class="fas fa-link text-emerald-400"></i> Link Ativo</span></h3><div class="flex gap-1 mb-2"><input type="text" value="${inviteLink}" id="inviteLinkInput" class="bg-black/30 border border-white/10 text-emerald-400 font-mono text-[9px] p-2 rounded w-full outline-none truncate" readonly><button id="btnCopyInvite" class="bg-white/10 hover:bg-white/20 text-white px-3 rounded text-[10px]"><i class="fas fa-copy"></i></button></div><button id="btnRevokeInvite" class="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 py-1.5 rounded text-[9px] font-bold uppercase">Revogar Link</button>`;
-            document.getElementById('btnCopyInvite').onclick = () => { navigator.clipboard.writeText(document.getElementById("inviteLinkInput").value); showNotification("Link copiado!", "success"); };
-            document.getElementById('btnRevokeInvite').onclick = () => { askConfirmation("Revogar convite?", async () => { await updateDoc(getCompanyDoc("convites", inviteCode), { active: false }); showSuccessAnim("Revogado"); renderInviteWidget(); }); };
-        } else {
-            div.innerHTML = `<h3 class="text-[10px] font-bold text-white uppercase mb-1"><i class="fas fa-ticket-alt text-gray-400"></i> Novo Convite</h3><button id="btnGenerateInvite" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2 rounded text-[9px] font-bold uppercase shadow-lg">Gerar Link</button>`;
-            document.getElementById('btnGenerateInvite').onclick = async () => {
-                const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-                await setDoc(getCompanyDoc("convites", code), { createdBy: state.currentUser.uid, createdAt: serverTimestamp(), active: true });
-                showSuccessAnim("Gerado"); renderInviteWidget();
-            };
-        }
-    } catch(e) {}
-}
-
 export function populateEmployeeSelect() {
     const s = document.getElementById('employeeSelect');
     if(s) { 
         s.innerHTML = '<option value="">Selecionar...</option>'; 
-        Object.keys(state.scheduleData || {}).sort().forEach(n => {
-            const user = state.scheduleData[n];
-            if (user.level < 100) s.innerHTML += `<option value="${n}">${n}</option>`;
-        }); 
+        if(state.scheduleData) {
+            Object.keys(state.scheduleData).sort().forEach(n => {
+                const user = state.scheduleData[n];
+                if (user.level < 100) s.innerHTML += `<option value="${n}">${n}</option>`;
+            }); 
+        }
     }
 }
 
