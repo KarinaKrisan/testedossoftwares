@@ -6,11 +6,16 @@ import { updatePersonalView, switchSubTab, renderMonthSelector, renderWeekendDut
 import { doc, getDoc, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
+// Exportações para o HTML
 window.switchSubTab = switchSubTab;
 window.updatePersonalView = updatePersonalView;
 window.switchAdminView = Admin.switchAdminView;
 window.renderDailyDashboard = Admin.renderDailyDashboard;
 window.handleCellClick = (name, dayIndex) => { state.isAdmin ? Admin.handleAdminCellClick(name, dayIndex) : Collab.handleCollabCellClick(name, dayIndex); };
+
+// Variável para controlar o "Dia Atual" e detectar mudanças
+let lastKnownDay = new Date().getDate();
+let lastKnownMonth = new Date().getMonth();
 
 const performLogout = async () => { try { await signOut(auth); window.location.href = "start.html"; } catch (e) { console.error(e); } };
 ['btnLogout', 'btnLogoutMobile'].forEach(id => { const btn = document.getElementById(id); if(btn) btn.onclick = performLogout; });
@@ -46,6 +51,9 @@ onAuthStateChanged(auth, async (user) => {
                 if (state.isDualRole) setInterfaceMode('admin'); else setInterfaceMode('collab');
                 loadData(); 
                 isFirstLoad = false;
+                
+                // Inicia o monitoramento de tempo após carregar o usuário
+                startSystemHeartbeat();
             });
         } catch (e) { console.error(e); }
     } else { if (!window.location.href.includes("start.html")) window.location.href = "start.html"; }
@@ -63,9 +71,9 @@ async function loadData() {
         await processScheduleData(rosterSnap, detailsMap);
         renderMonthSelector(() => handleMonthChange(-1), () => handleMonthChange(1));
         
-        if (state.currentViewMode === 'admin') { Admin.renderDailyDashboard(); Admin.populateEmployeeSelect(); } 
-        else { updatePersonalView(state.profile?.name); }
-        renderWeekendDuty();
+        // Renderização inicial baseada no modo
+        refreshCurrentView();
+        
     } catch (error) { console.error(error); } finally { hideLoader(); }
 }
 
@@ -85,7 +93,6 @@ async function processScheduleData(querySnapshot, detailsMap) {
 
 function buildUserObj(uid, profile, schedule) {
     let safeSchedule = [];
-    // BLINDAGEM: Garante 'F' onde estiver vazio
     const days = 32; 
     if (Array.isArray(schedule)) {
         for(let i=0; i<days; i++) safeSchedule.push((schedule[i]===undefined||schedule[i]===null||schedule[i]==="") ? "F" : schedule[i]);
@@ -106,12 +113,14 @@ function setInterfaceMode(mode) {
     const btnDual = document.getElementById('btnDualMode');
     const headerInd = document.getElementById('headerIndicator');
     const headerSuf = document.getElementById('headerSuffix');
+    
     if (state.isDualRole && btnDual) {
         btnDual.classList.replace('hidden', 'flex');
         btnDual.onclick = () => setInterfaceMode(state.currentViewMode === 'admin' ? 'collab' : 'admin');
         document.getElementById('dualModeText').innerText = mode === 'admin' ? "Área Colaborador" : "Área Admin";
         document.getElementById('dualModeIcon').className = mode === 'admin' ? "fas fa-user-astronaut text-[9px] text-gray-400" : "fas fa-shield-alt text-[9px] text-gray-400";
     }
+    
     if (mode === 'admin') {
         state.isAdmin = true; 
         if(headerInd) headerInd.className = "w-1 h-5 md:h-8 bg-purple-600 rounded-full shadow-[0_0_15px_#9333ea]";
@@ -126,6 +135,53 @@ function setInterfaceMode(mode) {
         document.getElementById('weekendDutyContainer')?.classList.remove('hidden');
         Collab.initCollabUI();
         updatePersonalView(state.profile?.name || "Usuário");
+    }
+}
+
+// --- FUNÇÃO DE HEARTBEAT (ATUALIZAÇÃO AUTOMÁTICA) ---
+function startSystemHeartbeat() {
+    // Roda a cada 60 segundos
+    setInterval(() => {
+        const now = new Date();
+        const currentDay = now.getDate();
+        const currentMonth = now.getMonth();
+
+        // 1. Verifica se houve mudança de dia ou mês
+        if (currentDay !== lastKnownDay || currentMonth !== lastKnownMonth) {
+            console.log("Sistema detectou virada de dia/mês. Atualizando interface...");
+            lastKnownDay = currentDay;
+            lastKnownMonth = currentMonth;
+            
+            // Se virou o mês, talvez precisemos mudar a seleção do mês (opcional), 
+            // mas o mínimo é recarregar a visualização atual.
+            refreshCurrentView();
+            showNotification("Data atualizada.", "info");
+        } else {
+            // Mesmo se o dia não mudou, forçamos atualização do Dashboard Admin 
+            // para garantir que os contadores estejam sincronizados
+            if (state.currentViewMode === 'admin') {
+                Admin.renderDailyDashboard();
+            }
+        }
+    }, 60000); 
+}
+
+// Atualiza a tela dependendo de onde o usuário está (Admin ou Collab)
+function refreshCurrentView() {
+    renderWeekendDuty(); // Atualiza Widget de FDS
+
+    if (state.currentViewMode === 'admin') {
+        Admin.renderDailyDashboard(); 
+        Admin.populateEmployeeSelect();
+        
+        // Se houver um funcionário selecionado na edição, redesenha o calendário dele
+        // para atualizar a classe 'is-today'
+        const selectedEmp = document.getElementById('employeeSelect')?.value;
+        if(selectedEmp) updatePersonalView(selectedEmp);
+        
+    } else {
+        // Modo Colaborador: Redesenha o calendário pessoal para mover o 'Hoje'
+        updatePersonalView(state.profile?.name);
     }
 }
 
