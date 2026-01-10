@@ -140,8 +140,10 @@ function setInterfaceMode(mode) {
 
 // --- FUNÇÃO DE HEARTBEAT (ATUALIZAÇÃO AUTOMÁTICA) ---
 function startSystemHeartbeat() {
-    // Roda a cada 60 segundos
-    setInterval(() => {
+    // Evita múltiplos intervalos
+    if (window.heartbeatInterval) clearInterval(window.heartbeatInterval);
+
+    window.heartbeatInterval = setInterval(async () => {
         const now = new Date();
         const currentDay = now.getDate();
         const currentMonth = now.getMonth();
@@ -149,21 +151,26 @@ function startSystemHeartbeat() {
         // 1. Verifica se houve mudança de dia ou mês
         if (currentDay !== lastKnownDay || currentMonth !== lastKnownMonth) {
             console.log("Sistema detectou virada de dia/mês. Atualizando interface...");
+            
+            // Se virou o mês, atualiza o state e força recarregamento do banco de dados
+            if (currentMonth !== lastKnownMonth) {
+                state.selectedMonthObj = { year: now.getFullYear(), month: now.getMonth() };
+                await loadData(); 
+            }
+
             lastKnownDay = currentDay;
             lastKnownMonth = currentMonth;
             
-            // Se virou o mês, talvez precisemos mudar a seleção do mês (opcional), 
-            // mas o mínimo é recarregar a visualização atual.
             refreshCurrentView();
             showNotification("Data atualizada.", "info");
         } else {
             // Mesmo se o dia não mudou, forçamos atualização do Dashboard Admin 
-            // para garantir que os contadores estejam sincronizados
+            // para garantir que os contadores (Ativo/Off) estejam sincronizados
             if (state.currentViewMode === 'admin') {
                 Admin.renderDailyDashboard();
             }
         }
-    }, 60000); 
+    }, 60000); // Roda a cada 60 segundos
 }
 
 // Atualiza a tela dependendo de onde o usuário está (Admin ou Collab)
@@ -175,7 +182,7 @@ function refreshCurrentView() {
         Admin.populateEmployeeSelect();
         
         // Se houver um funcionário selecionado na edição, redesenha o calendário dele
-        // para atualizar a classe 'is-today'
+        // para atualizar a classe 'is-today' e o novo mês
         const selectedEmp = document.getElementById('employeeSelect')?.value;
         if(selectedEmp) updatePersonalView(selectedEmp);
         
