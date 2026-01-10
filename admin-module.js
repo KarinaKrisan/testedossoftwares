@@ -11,7 +11,6 @@ let activeTool = null;
 window.openPromoteModal = openPromoteModal;
 window.confirmPromotion = confirmPromotion;
 window.selectRole = selectRole;
-window.runLegacyMigration = runLegacyMigration;
 window.approveRequest = approveRequest;
 window.rejectRequest = rejectRequest;
 window.setEditTool = setEditTool;
@@ -46,8 +45,7 @@ export function initAdminUI() {
     const btnSave = document.getElementById('btnSaveConfirm');
     if(btnSave) btnSave.onclick = confirmSaveToCloud;
     
-    // --- CONTROLE DE ACESSO: GERIR CARGOS ---
-    // Só exibe se o nível for >= 60 (Supervisor para cima)
+    // Controle do Botão Gerir Cargos
     const btnRoles = document.getElementById('btnManageRoles');
     if (btnRoles) {
         const myLevel = state.profile?.level || 0;
@@ -62,7 +60,7 @@ export function initAdminUI() {
     renderEditToolbar(); 
     initApprovalsTab(); 
     renderInviteWidget(); 
-    renderMigrationTool();
+    // REMOVIDO: renderMigrationTool(); <- Não carrega mais o botão laranja
     internalApplyLogFilter();
     switchAdminView('daily');
     
@@ -86,20 +84,16 @@ export function renderDailyDashboard() {
             const sToday = emp.schedule[todayIndex] || 'F';
             const sYesterday = (todayIndex > 0) ? (emp.schedule[todayIndex - 1] || 'F') : 'F';
 
-            let g = 'Encerrado'; // Default
+            let g = 'Encerrado'; 
 
-            // Identificação precisa de Noturno (19h às 07h)
             const h = emp.horario ? emp.horario.toLowerCase() : "";
             const isNightShift = h.includes("19:00 às 07:00") || h.includes("noite") || h.includes("noturno") || h.startsWith("19");
 
             if (isNightShift) {
-                // === NOTURNO (19h - 07h) ===
                 if (sToday === 'T') {
-                    // Dia de trabalho: Ativo só DEPOIS das 19h
                     g = (currentHour >= 19) ? 'Ativo' : 'Encerrado';
                 } 
                 else if (sToday === 'F' && sYesterday === 'T' && currentHour < 7) {
-                    // Madrugada pós-trabalho: Ativo até 07h
                     g = 'Ativo';
                 }
                 else if (['F','FS','FD'].includes(sToday)) g = 'Folga';
@@ -108,9 +102,7 @@ export function renderDailyDashboard() {
                 else if (sToday === 'LM') g = 'Licenca';
 
             } else {
-                // === DIURNO (07h - 19h) ===
                 if (sToday === 'T') {
-                    // Dia de trabalho: Ativo ATÉ as 19h
                     g = (currentHour >= 19) ? 'Encerrado' : 'Ativo';
                 } 
                 else if (['F','FS','FD'].includes(sToday)) g = 'Folga';
@@ -251,15 +243,8 @@ function renderAuditLogs() {
 }
 async function addAuditLog(action, target) { if(!state.currentUser) return; try { await addDoc(getCompanyCollection("logs_auditoria"), { adminEmail: state.currentUser.email, action, target, timestamp: serverTimestamp() }); } catch(e) {} }
 
-// --- FERRAMENTAS E MIGRAÇÃO ---
-function renderMigrationTool() {
-    const container = document.getElementById('adminControls'); if (document.getElementById('migrationBtn')) return;
-    const btn = document.createElement('button'); btn.id = 'migrationBtn'; btn.className = "w-full mt-4 bg-orange-600/20 border border-orange-500/50 text-orange-400 font-bold py-2.5 rounded-lg text-[10px] uppercase tracking-widest hover:bg-orange-600 hover:text-white transition-all";
-    btn.innerHTML = '<i class="fas fa-database mr-2"></i> Migrar Dados Antigos'; btn.onclick = () => { askConfirmation("Migrar dados?", runLegacyMigration); }; container.appendChild(btn);
-}
-async function runLegacyMigration() {
-    try { const oldCollabsSnap = await getDocs(getCompanyCollection("colaboradores")); for (const d of oldCollabsSnap.docs) { const data = d.data(); await setDoc(getCompanyDoc("users", d.id), { name: data.nome||data.name, email: data.email, role: 'collaborator', level: 10, cargo: data.cargo||'Colaborador', setorID: data.setorID||'NOC', horario: data.horario||'08:00', active: true, migratedAt: serverTimestamp() }, { merge: true }); } showNotification("Migração concluída", "success"); setTimeout(() => location.reload(), 2000); } catch(e) { showNotification("Erro: " + e.message, "error"); }
-}
+// --- FERRAMENTAS ---
+// REMOVIDO: Funções de Migração (renderMigrationTool e runLegacyMigration)
 
 // --- EDIÇÃO DE ESCALA ---
 async function confirmSaveToCloud() {
