@@ -7,7 +7,8 @@ let allLoadedLogs = [];
 let dailyUpdateInterval = null;
 let activeTool = null; 
 
-// --- EXPORTAÇÕES GLOBAIS (Para funcionar nos onclicks do HTML) ---
+// --- EXPORTAÇÕES GLOBAIS ---
+// Necessário para que os botões no HTML consigam chamar estas funções
 window.openPromoteModal = openPromoteModal;
 window.confirmPromotion = confirmPromotion;
 window.selectRole = selectRole;
@@ -20,6 +21,8 @@ window.renderInviteWidget = renderInviteWidget;
 // --- INICIALIZAÇÃO E NAVEGAÇÃO ---
 export function switchAdminView(view) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // Alterna visibilidade das abas (Daily, Edit, Approvals, Logs)
     ['Daily', 'Edit', 'Approvals', 'Logs'].forEach(s => {
         const screen = document.getElementById(`screen${s}`);
         if(screen) screen.classList.toggle('hidden', s.toLowerCase() !== view.toLowerCase());
@@ -30,10 +33,11 @@ export function switchAdminView(view) {
         }
     });
     
-    // Renderizações específicas por aba
+    // Lógica específica ao entrar na aba
     if (view === 'daily') renderDailyDashboard();
     if (view === 'logs') internalApplyLogFilter();
     
+    // Toolbar de edição só aparece na aba "Edit"
     const tb = document.getElementById('editToolbar');
     if (view === 'edit') { 
         if(tb) tb.classList.remove('hidden'); else renderEditToolbar(); 
@@ -55,70 +59,73 @@ export function initAdminUI() {
     internalApplyLogFilter();
     switchAdminView('daily');
     
-    // Intervalo para atualizar o Dashboard (status 12x36 muda em tempo real)
+    // Intervalo de 60s para atualizar quem está Ativo/Off no Dashboard
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
     dailyUpdateInterval = setInterval(() => { 
         const screen = document.getElementById('screenDaily');
         if (screen && !screen.classList.contains('hidden')) renderDailyDashboard(); 
-    }, 60000); // Roda a cada 60s
+    }, 60000);
 }
 
-// --- DASHBOARD DIÁRIO INTELIGENTE (12x36 NOTURNO) ---
+// --- DASHBOARD: LÓGICA DE TURNOS (DIURNO vs NOTURNO) ---
 export function renderDailyDashboard() {
     const now = new Date();
     const currentHour = now.getHours();
     const todayIndex = now.getDate() - 1; 
 
-    // Inicializa os grupos
+    // Grupos para os Cards
     const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
 
     if(state.scheduleData) {
         Object.values(state.scheduleData).forEach(emp => {
-            // Status Hoje e Ontem (para calcular madrugadas)
+            // Status do dia atual e do dia anterior (para madrugadas)
             const sToday = emp.schedule[todayIndex] || 'F';
             const sYesterday = (todayIndex > 0) ? (emp.schedule[todayIndex - 1] || 'F') : 'F';
 
-            let g = 'Encerrado'; // Default: OFF/Aguardando Turno
+            let g = 'Encerrado'; // Status padrão: OFF
 
             // Verifica se é perfil Noturno (Procura "19:00" ou "noite" no horário)
             const isNightShift = emp.horario && (emp.horario.includes("19:00") || emp.horario.toLowerCase().includes("noite"));
 
-            // --- LÓGICA DE DISTRIBUIÇÃO ---
             if (isNightShift) {
-                // Noturno: Só ativa depois das 19h ou na madrugada pós-plantão
+                // === LÓGICA NOTURNA (12x36 19h-07h) ===
                 if (sToday === 'T') {
-                    // Hoje é dia de trabalho: Ativo se >= 19h, senão Encerrado
+                    // Dia de trabalho: Só fica ATIVO se já passou das 19h
                     g = (currentHour >= 19) ? 'Ativo' : 'Encerrado';
                 } 
                 else if (sToday === 'F' && sYesterday === 'T' && currentHour < 7) {
-                    // Hoje é folga, mas trabalhou ontem e ainda é antes das 07h da manhã
+                    // Pós-plantão: Se trabalhou ontem e ainda não são 07h, continua ATIVO
                     g = 'Ativo';
                 }
+                // Outros status prioritários
                 else if (['F','FS','FD'].includes(sToday)) g = 'Folga';
                 else if (sToday === 'FE') g = 'Ferias';
                 else if (sToday === 'A') g = 'Afastado';
                 else if (sToday === 'LM') g = 'Licenca';
 
             } else {
-                // Diurno / Administrativo: Ativo o dia todo se for 'T'
-                if (sToday === 'T') g = 'Ativo'; 
+                // === LÓGICA DIURNA (12x36 07h-19h) ===
+                if (sToday === 'T') {
+                    // Dia de trabalho: Fica ATIVO até as 19h. Deu 19h, vai para ENCERRADO.
+                    g = (currentHour >= 19) ? 'Encerrado' : 'Ativo';
+                } 
                 else if (['F','FS','FD'].includes(sToday)) g = 'Folga';
                 else if (sToday === 'FE') g = 'Ferias';
                 else if (sToday === 'A') g = 'Afastado';
                 else if (sToday === 'LM') g = 'Licenca';
             }
 
-            // Push para o grupo decidido
+            // Adiciona ao grupo correspondente
             if (groups[g]) groups[g].push({ ...emp, status: sToday });
         });
     }
 
-    // Função de renderização do HTML dos cards
+    // Função interna para desenhar o HTML de cada lista
     const render = (k, l) => {
         const count = document.getElementById(`count${k}`); if(count) count.innerText = l.length;
         const list = document.getElementById(`list${k}`);
         if(list) {
-            // Definição de cores das bolinhas
+            // Cores indicativas
             let color = 'bg-gray-600'; // Default Encerrado
             if (k === 'Ativo') color = 'bg-emerald-500';
             if (k === 'Folga') color = 'bg-yellow-500';
@@ -149,7 +156,7 @@ async function renderInviteWidget() {
     // Estado de Loading
     container.innerHTML = `
         <div class="premium-glass p-4 rounded-xl border border-white/10 animate-pulse flex justify-center">
-            <span class="text-[10px] text-gray-500 uppercase tracking-widest"><i class="fas fa-circle-notch fa-spin mr-2"></i> Carregando Convites...</span>
+            <span class="text-[10px] text-gray-500 uppercase tracking-widest"><i class="fas fa-circle-notch fa-spin mr-2"></i> Carregando...</span>
         </div>
     `;
 
@@ -158,7 +165,7 @@ async function renderInviteWidget() {
         const snap = await getDocs(q);
 
         if (!snap.empty) {
-            // === MODO EXIBIÇÃO: LINK ATIVO ===
+            // === MODO EXIBIÇÃO: LINK JÁ EXISTENTE ===
             const inviteCode = snap.docs[0].id;
             const inviteLink = `${window.location.origin}${window.location.pathname.replace('index.html','')}/signup-colaborador.html?convite=${inviteCode}&company=${state.companyId}`;
 
@@ -208,7 +215,7 @@ async function renderInviteWidget() {
             };
 
         } else {
-            // === MODO GERAÇÃO: NOVO LINK ===
+            // === MODO GERAÇÃO: CRIAR NOVO LINK ===
             container.innerHTML = `
                 <div class="premium-glass p-4 rounded-xl border border-white/5 border-dashed hover:border-white/10 transition-all group">
                     <div class="flex items-center justify-between mb-3">
@@ -231,6 +238,7 @@ async function renderInviteWidget() {
                 btn.disabled = true;
 
                 try {
+                    // Busca nome da empresa para salvar no convite
                     const companyDocRef = doc(db, "companies", state.companyId);
                     const companySnap = await getDoc(companyDocRef);
                     
