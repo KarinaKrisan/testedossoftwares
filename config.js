@@ -16,16 +16,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-window.db = db; // Debug helper
+window.db = db; 
 
 // --- GERAÇÃO DINÂMICA DE DATAS ---
 const today = new Date();
 
-// Gera automaticamente meses passados (ex: -2) e futuros (ex: +12)
-// O objeto Date do JS trata automaticamente a virada de ano
 export const availableMonths = (() => {
     const list = [];
-    // Gera do mês anterior até 1 ano e meio para frente
     for (let i = -1; i <= 18; i++) {
         const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
         list.push({ year: d.getFullYear(), month: d.getMonth() });
@@ -41,10 +38,7 @@ export const state = {
     currentUser: null,
     profile: null, 
     scheduleData: {}, 
-    
-    // Inicia dinamicamente no Ano e Mês atuais
     selectedMonthObj: { year: today.getFullYear(), month: today.getMonth() }, 
-    
     activeRequestType: 'troca_dia_trabalho',
     companyId: null 
 };
@@ -85,13 +79,15 @@ export function getDaysInMonth(year, month) {
     return days;
 }
 
+// --- HIERARQUIA ATUALIZADA (NOVOS NÍVEIS) ---
 export const HIERARCHY = {
     CEO: { role: 'ceo', level: 100, label: 'CEO' },
     DIRETOR: { role: 'director', level: 90, label: 'Diretor' },
-    GERENTE: { role: 'manager', level: 70, label: 'Gerente' },
-    COORDENADOR: { role: 'coordinator', level: 50, label: 'Coordenador' },
-    SUPERVISOR: { role: 'supervisor', level: 40, label: 'Supervisor' },
-    LIDER: { role: 'leader', level: 30, label: 'Líder de Célula' },
+    GERENTE: { role: 'manager', level: 80, label: 'Gerente' },
+    COORDENADOR: { role: 'coordinator', level: 70, label: 'Coordenador' },
+    SUPERVISOR: { role: 'supervisor', level: 60, label: 'Supervisor' },
+    GESTOR_TECNICO: { role: 'tech_manager', level: 50, label: 'Gestor Técnico' },
+    LIDER: { role: 'leader', level: 40, label: 'Líder' },
     COLABORADOR: { role: 'collaborator', level: 10, label: 'Colaborador' }
 };
 
