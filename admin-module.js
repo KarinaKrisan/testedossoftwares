@@ -7,7 +7,7 @@ let allLoadedLogs = [];
 let dailyUpdateInterval = null;
 let activeTool = null; 
 
-// --- EXPORTAÇÕES GLOBAIS ---
+// --- EXPORTAÇÕES GLOBAIS (Para funcionar nos onclicks do HTML) ---
 window.openPromoteModal = openPromoteModal;
 window.confirmPromotion = confirmPromotion;
 window.selectRole = selectRole;
@@ -30,6 +30,7 @@ export function switchAdminView(view) {
         }
     });
     
+    // Renderizações específicas por aba
     if (view === 'daily') renderDailyDashboard();
     if (view === 'logs') internalApplyLogFilter();
     
@@ -49,24 +50,103 @@ export function initAdminUI() {
     populateEmployeeSelect();
     renderEditToolbar(); 
     initApprovalsTab(); 
-    renderInviteWidget(); // Chama o widget corrigido
+    renderInviteWidget(); 
     renderMigrationTool();
     internalApplyLogFilter();
     switchAdminView('daily');
     
+    // Intervalo para atualizar o Dashboard (status 12x36 muda em tempo real)
     if (dailyUpdateInterval) clearInterval(dailyUpdateInterval);
     dailyUpdateInterval = setInterval(() => { 
         const screen = document.getElementById('screenDaily');
         if (screen && !screen.classList.contains('hidden')) renderDailyDashboard(); 
-    }, 60000);
+    }, 60000); // Roda a cada 60s
 }
 
-// --- WIDGET DE CONVITES CORRIGIDO (COM NOME DA EMPRESA) ---
+// --- DASHBOARD DIÁRIO INTELIGENTE (12x36 NOTURNO) ---
+export function renderDailyDashboard() {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const todayIndex = now.getDate() - 1; 
+
+    // Inicializa os grupos
+    const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
+
+    if(state.scheduleData) {
+        Object.values(state.scheduleData).forEach(emp => {
+            // Status Hoje e Ontem (para calcular madrugadas)
+            const sToday = emp.schedule[todayIndex] || 'F';
+            const sYesterday = (todayIndex > 0) ? (emp.schedule[todayIndex - 1] || 'F') : 'F';
+
+            let g = 'Encerrado'; // Default: OFF/Aguardando Turno
+
+            // Verifica se é perfil Noturno (Procura "19:00" ou "noite" no horário)
+            const isNightShift = emp.horario && (emp.horario.includes("19:00") || emp.horario.toLowerCase().includes("noite"));
+
+            // --- LÓGICA DE DISTRIBUIÇÃO ---
+            if (isNightShift) {
+                // Noturno: Só ativa depois das 19h ou na madrugada pós-plantão
+                if (sToday === 'T') {
+                    // Hoje é dia de trabalho: Ativo se >= 19h, senão Encerrado
+                    g = (currentHour >= 19) ? 'Ativo' : 'Encerrado';
+                } 
+                else if (sToday === 'F' && sYesterday === 'T' && currentHour < 7) {
+                    // Hoje é folga, mas trabalhou ontem e ainda é antes das 07h da manhã
+                    g = 'Ativo';
+                }
+                else if (['F','FS','FD'].includes(sToday)) g = 'Folga';
+                else if (sToday === 'FE') g = 'Ferias';
+                else if (sToday === 'A') g = 'Afastado';
+                else if (sToday === 'LM') g = 'Licenca';
+
+            } else {
+                // Diurno / Administrativo: Ativo o dia todo se for 'T'
+                if (sToday === 'T') g = 'Ativo'; 
+                else if (['F','FS','FD'].includes(sToday)) g = 'Folga';
+                else if (sToday === 'FE') g = 'Ferias';
+                else if (sToday === 'A') g = 'Afastado';
+                else if (sToday === 'LM') g = 'Licenca';
+            }
+
+            // Push para o grupo decidido
+            if (groups[g]) groups[g].push({ ...emp, status: sToday });
+        });
+    }
+
+    // Função de renderização do HTML dos cards
+    const render = (k, l) => {
+        const count = document.getElementById(`count${k}`); if(count) count.innerText = l.length;
+        const list = document.getElementById(`list${k}`);
+        if(list) {
+            // Definição de cores das bolinhas
+            let color = 'bg-gray-600'; // Default Encerrado
+            if (k === 'Ativo') color = 'bg-emerald-500';
+            if (k === 'Folga') color = 'bg-yellow-500';
+            if (k === 'Ferias') color = 'bg-red-500';
+            if (k === 'Afastado') color = 'bg-orange-500';
+            if (k === 'Licenca') color = 'bg-pink-500';
+
+            list.innerHTML = l.map(u => `
+                <div class="flex items-center justify-between bg-white/5 border border-white/5 rounded px-2 py-1 mb-1 hover:bg-white/10 transition-colors">
+                    <div class="flex items-center gap-2">
+                        <div class="w-1.5 h-1.5 rounded-full ${color} shadow-[0_0_5px_rgba(255,255,255,0.3)]"></div>
+                        <span class="text-[9px] font-medium text-gray-300 truncate max-w-[90px]" title="${u.name}">${u.name.split(' ')[0]} ${u.name.split(' ')[1] ? u.name.split(' ')[1][0]+'.' : ''}</span>
+                    </div>
+                    <span class="text-[8px] text-white/30 font-mono tracking-tighter">${u.horario ? u.horario.split(' ')[0] : '08:00'}</span>
+                </div>`
+            ).join('');
+        }
+    };
+
+    Object.keys(groups).forEach(k => render(k, groups[k]));
+}
+
+// --- WIDGET DE CONVITES ---
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
     if (!container) return; 
 
-    // Estado de Loading (evita barra vazia)
+    // Estado de Loading
     container.innerHTML = `
         <div class="premium-glass p-4 rounded-xl border border-white/10 animate-pulse flex justify-center">
             <span class="text-[10px] text-gray-500 uppercase tracking-widest"><i class="fas fa-circle-notch fa-spin mr-2"></i> Carregando Convites...</span>
@@ -151,8 +231,6 @@ async function renderInviteWidget() {
                 btn.disabled = true;
 
                 try {
-                    // 1. Busca o nome da empresa para salvar no convite
-                    // Isso garante que no signup apareça "Pioneira Churros" e não "Cronos System"
                     const companyDocRef = doc(db, "companies", state.companyId);
                     const companySnap = await getDoc(companyDocRef);
                     
@@ -162,16 +240,14 @@ async function renderInviteWidget() {
                         companyName = data.name || data.nome || "Sua Empresa";
                     }
 
-                    // 2. Gera o código
                     const code = Math.random().toString(36).substring(2, 6).toUpperCase() + '-' + Math.random().toString(36).substring(2, 6).toUpperCase();
                     
-                    // 3. Salva com o nome correto
                     await setDoc(getCompanyDoc("convites", code), { 
                         createdBy: state.currentUser.uid, 
                         createdAt: serverTimestamp(), 
                         active: true,
-                        companyName: companyName, // Salva o nome real
-                        companyId: state.companyId // Salva o ID por segurança
+                        companyName: companyName,
+                        companyId: state.companyId 
                     });
 
                     showNotification("Link gerado!", "success");
@@ -179,17 +255,15 @@ async function renderInviteWidget() {
                 } catch (error) {
                     console.error("Erro ao gerar convite:", error);
                     let msg = "Erro ao gerar.";
-                    if(error.code === 'permission-denied') msg = "Sem permissão. Verifique as Regras do Firebase.";
+                    if(error.code === 'permission-denied') msg = "Sem permissão.";
                     showNotification(msg, "error");
                     btn.innerHTML = 'Tentar Novamente';
                     btn.disabled = false;
                 }
             };
         }
-
     } catch (e) {
         console.error("Erro no widget:", e);
-        container.innerHTML = `<div class="p-3 bg-red-500/10 border border-red-500/20 rounded text-center"><p class="text-[9px] text-red-400">Erro: ${e.code || e.message}</p><button onclick="renderInviteWidget()" class="mt-2 text-[9px] underline text-white">Recarregar</button></div>`;
     }
 }
 
@@ -260,7 +334,7 @@ async function confirmPromotion() {
     });
 }
 
-// --- LOGS ---
+// --- LOGS E AUDITORIA ---
 async function internalApplyLogFilter() {
     const q = query(getCompanyCollection("logs_auditoria"), orderBy("timestamp", "desc"));
     onSnapshot(q, (snap) => {
@@ -287,7 +361,7 @@ async function addAuditLog(action, target) {
     try { await addDoc(getCompanyCollection("logs_auditoria"), { adminEmail: state.currentUser.email, action, target, timestamp: serverTimestamp() }); } catch(e) {}
 }
 
-// --- FERRAMENTAS ---
+// --- FERRAMENTAS E MIGRAÇÃO ---
 function renderMigrationTool() {
     const container = document.getElementById('adminControls');
     if (document.getElementById('migrationBtn')) return;
@@ -311,32 +385,7 @@ async function runLegacyMigration() {
     } catch(e) { showNotification("Erro: " + e.message, "error"); }
 }
 
-export function renderDailyDashboard() {
-    const todayIndex = new Date().getDate() - 1; 
-    const groups = { Ativo: [], Encerrado: [], Folga: [], Ferias: [], Afastado: [], Licenca: [] };
-    if(state.scheduleData) {
-        Object.values(state.scheduleData).forEach(emp => {
-            const s = emp.schedule[todayIndex] || 'F';
-            let g = 'Encerrado';
-            if (s === 'T') g = 'Ativo'; 
-            if (['F','FS','FD'].includes(s)) g = 'Folga';
-            if (s === 'FE') g = 'Ferias';
-            if (s === 'A') g = 'Afastado';
-            if (s === 'LM') g = 'Licenca';
-            if (groups[g]) groups[g].push({ ...emp, status: s });
-        });
-    }
-    const render = (k, l) => {
-        const count = document.getElementById(`count${k}`); if(count) count.innerText = l.length;
-        const list = document.getElementById(`list${k}`);
-        if(list) {
-            let color = k === 'Ativo' ? 'bg-emerald-500' : 'bg-gray-600';
-            list.innerHTML = l.map(u => `<div class="flex items-center justify-between bg-white/5 border border-white/5 rounded px-2 py-1"><div class="flex items-center gap-2"><div class="w-1 h-3 rounded-full ${color}"></div><span class="text-[9px] font-medium text-gray-300">${u.name}</span></div><span class="text-[8px] text-white/30">${u.status}</span></div>`).join('');
-        }
-    };
-    Object.keys(groups).forEach(k => render(k, groups[k]));
-}
-
+// --- EDIÇÃO DE ESCALA ---
 async function confirmSaveToCloud() {
     const emp = document.getElementById('employeeSelect').value;
     if (!emp) return showNotification("Selecione um colaborador", "error");
