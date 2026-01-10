@@ -2,33 +2,13 @@
 import { state, monthNames, getDaysInMonth, pad } from './config.js';
 
 export function updateDynamicMenu() {
-    const level = state.profile?.level || 0;
     const menuContainer = document.getElementById('dynamicMenuContainer');
     if (!menuContainer) return;
 
-    // Começa vazio (Removeu "Meu Trabalho" e "Minha Célula")
-    let menuHTML = '';
-    
-    // Mantém apenas opções de Gestão/Administrativas
-    if (level >= 50) {
-        menuHTML += `
-            <p class="text-[8px] text-gray-600 uppercase font-bold px-2 mb-1 tracking-widest mt-2">Gestão</p>
-            <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"><i class="fas fa-user-tie text-purple-400"></i> Gestão de Líderes</button>
-            <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"><i class="fas fa-chart-line text-purple-400"></i> Relatórios</button>
-        `;
-    }
-    if (level >= 90) {
-        menuHTML += `<button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"><i class="fas fa-globe text-emerald-400"></i> Visão Global</button>`;
-    }
-    
-    // Se o menu estiver vazio (ex: Líder nível 40 que não tem mais "Minha Célula"), 
-    // removemos a borda superior para não ficar uma linha sozinha
-    if (menuHTML === '') {
-        menuContainer.classList.add('hidden');
-    } else {
-        menuContainer.classList.remove('hidden');
-        menuContainer.innerHTML = menuHTML;
-    }
+    // REMOVIDO: "Gestão de Líderes", "Relatórios", "Visão Global", "Meu Trabalho", "Minha Célula".
+    // O menu agora fica vazio e oculto.
+    menuContainer.innerHTML = '';
+    menuContainer.classList.add('hidden');
 }
 
 export function showNotification(msg, type = 'success') {
