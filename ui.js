@@ -6,15 +6,13 @@ export function updateDynamicMenu() {
     const menuContainer = document.getElementById('dynamicMenuContainer');
     if (!menuContainer) return;
 
-    let menuHTML = `<button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"><i class="fas fa-briefcase text-blue-400"></i> Meu Trabalho</button>`;
+    // Começa vazio (Removeu "Meu Trabalho" e "Minha Célula")
+    let menuHTML = '';
     
-    if (level >= 30) {
-        menuHTML += `<button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"><i class="fas fa-users text-blue-400"></i> Minha Célula</button>`;
-    }
+    // Mantém apenas opções de Gestão/Administrativas
     if (level >= 50) {
         menuHTML += `
-            <div class="my-2 border-t border-white/10 mx-2"></div>
-            <p class="text-[8px] text-gray-600 uppercase font-bold px-2 mb-1 tracking-widest">Gestão</p>
+            <p class="text-[8px] text-gray-600 uppercase font-bold px-2 mb-1 tracking-widest mt-2">Gestão</p>
             <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"><i class="fas fa-user-tie text-purple-400"></i> Gestão de Líderes</button>
             <button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"><i class="fas fa-chart-line text-purple-400"></i> Relatórios</button>
         `;
@@ -22,7 +20,15 @@ export function updateDynamicMenu() {
     if (level >= 90) {
         menuHTML += `<button class="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-[10px] text-gray-400 hover:text-white transition-all flex items-center gap-2"><i class="fas fa-globe text-emerald-400"></i> Visão Global</button>`;
     }
-    menuContainer.innerHTML = menuHTML;
+    
+    // Se o menu estiver vazio (ex: Líder nível 40 que não tem mais "Minha Célula"), 
+    // removemos a borda superior para não ficar uma linha sozinha
+    if (menuHTML === '') {
+        menuContainer.classList.add('hidden');
+    } else {
+        menuContainer.classList.remove('hidden');
+        menuContainer.innerHTML = menuHTML;
+    }
 }
 
 export function showNotification(msg, type = 'success') {
