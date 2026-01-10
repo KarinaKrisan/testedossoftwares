@@ -46,6 +46,18 @@ export function initAdminUI() {
     const btnSave = document.getElementById('btnSaveConfirm');
     if(btnSave) btnSave.onclick = confirmSaveToCloud;
     
+    // --- CONTROLE DE ACESSO: GERIR CARGOS ---
+    // Só exibe se o nível for >= 60 (Supervisor para cima)
+    const btnRoles = document.getElementById('btnManageRoles');
+    if (btnRoles) {
+        const myLevel = state.profile?.level || 0;
+        if (myLevel >= 60) {
+            btnRoles.classList.remove('hidden'); 
+        } else {
+            btnRoles.classList.add('hidden');
+        }
+    }
+
     populateEmployeeSelect();
     renderEditToolbar(); 
     initApprovalsTab(); 
@@ -61,7 +73,7 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- DASHBOARD: LÓGICA DE TURNOS CORRIGIDA ---
+// --- DASHBOARD: LÓGICA DE TURNOS ---
 export function renderDailyDashboard() {
     const now = new Date();
     const currentHour = now.getHours();
@@ -76,9 +88,7 @@ export function renderDailyDashboard() {
 
             let g = 'Encerrado'; // Default
 
-            // CORREÇÃO AQUI: 
-            // Só é noturno se tiver "19:00 às 07:00" OU palavras chave.
-            // Isso evita que "07:00 às 19:00" seja confundido com noturno.
+            // Identificação precisa de Noturno (19h às 07h)
             const h = emp.horario ? emp.horario.toLowerCase() : "";
             const isNightShift = h.includes("19:00 às 07:00") || h.includes("noite") || h.includes("noturno") || h.startsWith("19");
 
