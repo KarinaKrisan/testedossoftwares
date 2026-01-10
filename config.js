@@ -18,6 +18,21 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 window.db = db; // Debug helper
 
+// --- GERAÇÃO DINÂMICA DE DATAS ---
+const today = new Date();
+
+// Gera automaticamente meses passados (ex: -2) e futuros (ex: +12)
+// O objeto Date do JS trata automaticamente a virada de ano
+export const availableMonths = (() => {
+    const list = [];
+    // Gera do mês anterior até 1 ano e meio para frente
+    for (let i = -1; i <= 18; i++) {
+        const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+        list.push({ year: d.getFullYear(), month: d.getMonth() });
+    }
+    return list;
+})();
+
 export const state = {
     isAdmin: false,
     isCollab: false,
@@ -26,7 +41,10 @@ export const state = {
     currentUser: null,
     profile: null, 
     scheduleData: {}, 
-    selectedMonthObj: { year: 2025, month: 11 }, 
+    
+    // Inicia dinamicamente no Ano e Mês atuais
+    selectedMonthObj: { year: today.getFullYear(), month: today.getMonth() }, 
+    
     activeRequestType: 'troca_dia_trabalho',
     companyId: null 
 };
@@ -51,12 +69,6 @@ export function getCompanySubDoc(root, docId, sub, subDocId) {
 
 // --- CONSTANTES ---
 export const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
-export const availableMonths = (() => {
-    const list = [{ year: 2025, month: 11 }];
-    for (let m = 0; m <= 11; m++) list.push({ year: 2026, month: m });
-    return list;
-})();
 
 // --- UTILS ---
 export function hideLoader() {
