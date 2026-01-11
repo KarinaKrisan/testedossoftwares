@@ -25,7 +25,6 @@ export function switchAdminView(view) {
         
         const btn = document.getElementById(`btnNav${s}`);
         if(btn) { 
-            // Reset visual dos botões de navegação
             btn.classList.remove('bg-white/10', 'text-white');
             btn.classList.add('text-gray-400');
             
@@ -52,7 +51,7 @@ export function initAdminUI() {
     const btnSave = document.getElementById('btnSaveConfirm');
     if(btnSave) btnSave.onclick = confirmSaveToCloud;
     
-    // --- CONTROLE DE ACESSO: GERIR CARGOS (Nível 60+) ---
+    // --- CONTROLE DE ACESSO ---
     const btnRoles = document.getElementById('btnManageRoles');
     if (btnRoles) {
         const myLevel = state.profile?.level || 0;
@@ -77,7 +76,7 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- DASHBOARD: LÓGICA DE TURNOS E VISUAL AJUSTADO ---
+// --- DASHBOARD: VISUAL COM NOME COMPLETO ---
 export function renderDailyDashboard() {
     const now = new Date();
     const currentHour = now.getHours();
@@ -92,12 +91,10 @@ export function renderDailyDashboard() {
 
             let g = 'Encerrado'; 
 
-            // Identificação rigorosa de Noturno (19h - 07h)
             const h = emp.horario ? emp.horario.toLowerCase() : "";
             const isNightShift = h.includes("19:00 às 07:00") || h.includes("noite") || h.includes("noturno") || h.startsWith("19");
 
             if (isNightShift) {
-                // Noturno: Ativa 19h / Desativa 07h
                 if (sToday === 'T') {
                     g = (currentHour >= 19) ? 'Ativo' : 'Encerrado';
                 } 
@@ -110,7 +107,6 @@ export function renderDailyDashboard() {
                 else if (sToday === 'LM') g = 'Licenca';
 
             } else {
-                // Diurno: Ativa 07h / Desativa 19h
                 if (sToday === 'T') {
                     g = (currentHour >= 19) ? 'Encerrado' : 'Ativo';
                 } 
@@ -124,7 +120,6 @@ export function renderDailyDashboard() {
         });
     }
 
-    // Configuração Visual dos Cards
     const meta = {
         Ativo: { label: 'Em Turno', color: 'emerald', icon: 'fa-bolt' },
         Encerrado: { label: 'Off / Descanso', color: 'zinc', icon: 'fa-bed' },
@@ -168,9 +163,10 @@ export function renderDailyDashboard() {
                         <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[10px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0">
                             ${u.name.charAt(0)}
                         </div>
+                        
                         <div class="flex flex-col min-w-0">
-                            <span class="text-[11px] font-medium text-gray-200 leading-tight truncate block" title="${u.name}">
-                                ${u.name.split(' ')[0]} ${u.name.split(' ')[1]?u.name.split(' ')[1][0]+'.':''}
+                            <span class="text-[11px] font-medium text-gray-200 leading-tight" title="${u.name}">
+                                ${u.name} 
                             </span>
                             <span class="text-[9px] text-gray-500 font-mono truncate block" title="${u.cargo || 'Colaborador'}">
                                 ${u.cargo || 'Colaborador'}
@@ -190,11 +186,11 @@ export function renderDailyDashboard() {
     });
 }
 
-// --- WIDGET DE CONVITES ---
+// ... (Restante do arquivo permanece igual: renderInviteWidget, editToolbar, etc.) ...
+
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
     if (!container) return; 
-    
     container.innerHTML = `<div class="p-4 rounded-xl border border-white/5 bg-white/5 animate-pulse flex justify-center"><i class="fas fa-circle-notch fa-spin text-gray-500"></i></div>`;
 
     try {
@@ -219,7 +215,6 @@ async function renderInviteWidget() {
                     </div>
                     <button id="btnRevokeInvite" class="w-full py-1.5 text-[9px] text-red-400 hover:text-red-300 font-medium hover:underline text-left">Revogar este link</button>
                 </div>`;
-                
             document.getElementById('btnCopyInvite').onclick = () => { const input = document.getElementById("inviteLinkInput"); input.select(); input.setSelectionRange(0, 99999); navigator.clipboard.writeText(input.value); showNotification("Link copiado!", "success"); };
             document.getElementById('btnRevokeInvite').onclick = () => { askConfirmation("Revogar este convite?", async () => { await updateDoc(getCompanyDoc("convites", code), { active: false }); showNotification("Convite revogado.", "success"); renderInviteWidget(); }); };
         } else {
@@ -245,7 +240,6 @@ async function renderInviteWidget() {
     } catch (e) { console.error("Erro no widget:", e); }
 }
 
-// --- GESTÃO DE CARGOS ---
 function openPromoteModal() {
     const modal = document.getElementById('promoteModal');
     const userSelect = document.getElementById('promoteTargetUser');
@@ -280,7 +274,6 @@ async function confirmPromotion() {
     });
 }
 
-// --- LOGS E AUDITORIA ---
 async function internalApplyLogFilter() {
     const q = query(getCompanyCollection("logs_auditoria"), orderBy("timestamp", "desc"));
     onSnapshot(q, (snap) => {
@@ -295,7 +288,6 @@ function renderAuditLogs() {
 }
 async function addAuditLog(action, target) { if(!state.currentUser) return; try { await addDoc(getCompanyCollection("logs_auditoria"), { adminEmail: state.currentUser.email, action, target, timestamp: serverTimestamp() }); } catch(e) {} }
 
-// --- EDIÇÃO DE ESCALA ---
 async function confirmSaveToCloud() {
     const emp = document.getElementById('employeeSelect').value; if (!emp) return showNotification("Selecione um colaborador", "error");
     askConfirmation(`Salvar escala de ${emp}?`, async () => {
@@ -319,7 +311,6 @@ function askConfirmation(message, onConfirm) {
 
 export function populateEmployeeSelect() { const s = document.getElementById('employeeSelect'); if(s && state.scheduleData) { s.innerHTML = '<option value="">Selecionar...</option>' + Object.keys(state.scheduleData).sort().filter(n=>state.scheduleData[n].level < 100).map(n=>`<option value="${n}">${n}</option>`).join(''); } }
 
-// --- TOOLBAR (Pills Design) ---
 function renderEditToolbar() {
     const tb = document.getElementById('editToolbar');
     if (tb) return;
