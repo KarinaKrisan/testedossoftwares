@@ -22,9 +22,10 @@ export function switchAdminView(view) {
     ['Daily', 'Edit', 'Approvals', 'Logs'].forEach(s => {
         const screen = document.getElementById(`screen${s}`);
         if(screen) screen.classList.toggle('hidden', s.toLowerCase() !== view.toLowerCase());
+        
         const btn = document.getElementById(`btnNav${s}`);
         if(btn) { 
-            // Reset visual dos botões
+            // Reset visual dos botões de navegação
             btn.classList.remove('bg-white/10', 'text-white');
             btn.classList.add('text-gray-400');
             
@@ -51,7 +52,7 @@ export function initAdminUI() {
     const btnSave = document.getElementById('btnSaveConfirm');
     if(btnSave) btnSave.onclick = confirmSaveToCloud;
     
-    // --- CONTROLE DE ACESSO: GERIR CARGOS ---
+    // --- CONTROLE DE ACESSO: GERIR CARGOS (Nível 60+) ---
     const btnRoles = document.getElementById('btnManageRoles');
     if (btnRoles) {
         const myLevel = state.profile?.level || 0;
@@ -66,7 +67,6 @@ export function initAdminUI() {
     renderEditToolbar(); 
     initApprovalsTab(); 
     renderInviteWidget(); 
-    // MIGRATION TOOL REMOVIDA
     internalApplyLogFilter();
     switchAdminView('daily');
     
@@ -77,7 +77,7 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- DASHBOARD: LÓGICA DE TURNOS E VISUAL NOVO ---
+// --- DASHBOARD: LÓGICA DE TURNOS E VISUAL AJUSTADO ---
 export function renderDailyDashboard() {
     const now = new Date();
     const currentHour = now.getHours();
@@ -92,11 +92,12 @@ export function renderDailyDashboard() {
 
             let g = 'Encerrado'; 
 
-            // Identificação Noturno (19h - 07h)
+            // Identificação rigorosa de Noturno (19h - 07h)
             const h = emp.horario ? emp.horario.toLowerCase() : "";
             const isNightShift = h.includes("19:00 às 07:00") || h.includes("noite") || h.includes("noturno") || h.startsWith("19");
 
             if (isNightShift) {
+                // Noturno: Ativa 19h / Desativa 07h
                 if (sToday === 'T') {
                     g = (currentHour >= 19) ? 'Ativo' : 'Encerrado';
                 } 
@@ -109,7 +110,7 @@ export function renderDailyDashboard() {
                 else if (sToday === 'LM') g = 'Licenca';
 
             } else {
-                // Diurno (07h - 19h)
+                // Diurno: Ativa 07h / Desativa 19h
                 if (sToday === 'T') {
                     g = (currentHour >= 19) ? 'Encerrado' : 'Ativo';
                 } 
@@ -126,7 +127,7 @@ export function renderDailyDashboard() {
     // Configuração Visual dos Cards
     const meta = {
         Ativo: { label: 'Em Turno', color: 'emerald', icon: 'fa-bolt' },
-        Encerrado: { label: 'Off / Descanso', color: 'zinc', icon: 'fa-bed' }, // Zinc usa classes gray no Tailwind padrão se zinc não existir, ajustado abaixo
+        Encerrado: { label: 'Off / Descanso', color: 'zinc', icon: 'fa-bed' },
         Folga: { label: 'Folga', color: 'yellow', icon: 'fa-coffee' },
         Ferias: { label: 'Férias', color: 'red', icon: 'fa-plane' },
         Afastado: { label: 'Afastado', color: 'orange', icon: 'fa-user-injured' },
@@ -135,16 +136,14 @@ export function renderDailyDashboard() {
 
     Object.keys(groups).forEach(k => {
         const container = document.getElementById(`card${k}`);
-        if (!container) return; // Se o HTML novo não tiver ID cardAtivo, isso previne erro
+        if (!container) return;
 
         const info = meta[k];
         const count = groups[k].length;
-        
-        // Ajuste de cor para "zinc" -> "gray" se necessário
         const colorName = info.color === 'zinc' ? 'gray' : info.color;
 
         let html = `
-            <div class="flex justify-between items-center mb-3 pb-2 border-b border-white/5">
+            <div class="flex justify-between items-center mb-3 pb-2 border-b border-white/5 shrink-0">
                 <div class="flex items-center gap-2 text-${colorName}-400">
                     <div class="w-6 h-6 rounded-md bg-${colorName}-500/10 flex items-center justify-center border border-${colorName}-500/20">
                         <i class="fas ${info.icon} text-[10px]"></i>
@@ -153,7 +152,7 @@ export function renderDailyDashboard() {
                 </div>
                 <span class="text-xs font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">${count}</span>
             </div>
-            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-1">
+            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2">
         `;
 
         if (count === 0) {
@@ -163,17 +162,23 @@ export function renderDailyDashboard() {
             </div>`;
         } else {
             html += groups[k].map(u => `
-                <div class="group flex items-center justify-between p-2 rounded-xl hover:bg-white/5 transition-all border border-transparent hover:border-white/5">
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[10px] font-bold text-gray-300 border border-white/10 shadow-sm group-hover:scale-110 transition-transform shrink-0">
+                <div class="group flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition-all border border-transparent hover:border-white/5">
+                    
+                    <div class="flex items-center gap-3 min-w-0 flex-1">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[10px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0">
                             ${u.name.charAt(0)}
                         </div>
                         <div class="flex flex-col min-w-0">
-                            <span class="text-[11px] font-medium text-gray-200 leading-tight truncate max-w-[100px]">${u.name.split(' ')[0]} ${u.name.split(' ')[1]?u.name.split(' ')[1][0]+'.':''}</span>
-                            <span class="text-[9px] text-gray-500 font-mono truncate">${u.cargo || 'Colaborador'}</span>
+                            <span class="text-[11px] font-medium text-gray-200 leading-tight truncate block" title="${u.name}">
+                                ${u.name.split(' ')[0]} ${u.name.split(' ')[1]?u.name.split(' ')[1][0]+'.':''}
+                            </span>
+                            <span class="text-[9px] text-gray-500 font-mono truncate block" title="${u.cargo || 'Colaborador'}">
+                                ${u.cargo || 'Colaborador'}
+                            </span>
                         </div>
                     </div>
-                    <div class="text-[9px] font-mono text-${colorName}-400 bg-${colorName}-500/5 px-1.5 py-0.5 rounded border border-${colorName}-500/10 shrink-0">
+
+                    <div class="text-[9px] font-mono text-${colorName}-400 bg-${colorName}-500/5 px-2 py-1 rounded border border-${colorName}-500/10 shrink-0 ml-2">
                         ${u.horario ? u.horario.split(' ')[0] : '08:00'}
                     </div>
                 </div>
@@ -181,20 +186,11 @@ export function renderDailyDashboard() {
         }
         
         html += `</div>`;
-        
-        // Tenta injetar no novo ID (cardAtivo), se não existir tenta no antigo (listAtivo)
-        if(container) container.innerHTML = html;
-    });
-    
-    // Fallback para manter compatibilidade se o HTML não tiver sido atualizado completamente
-    // Atualiza contadores antigos se existirem
-    Object.keys(groups).forEach(k => {
-        const c = document.getElementById(`count${k}`);
-        if(c) c.innerText = groups[k].length;
+        container.innerHTML = html;
     });
 }
 
-// --- WIDGET DE CONVITES (VISUAL NOVO) ---
+// --- WIDGET DE CONVITES ---
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
     if (!container) return; 
@@ -323,13 +319,12 @@ function askConfirmation(message, onConfirm) {
 
 export function populateEmployeeSelect() { const s = document.getElementById('employeeSelect'); if(s && state.scheduleData) { s.innerHTML = '<option value="">Selecionar...</option>' + Object.keys(state.scheduleData).sort().filter(n=>state.scheduleData[n].level < 100).map(n=>`<option value="${n}">${n}</option>`).join(''); } }
 
-// --- TOOLBAR VISUAL NOVO ---
+// --- TOOLBAR (Pills Design) ---
 function renderEditToolbar() {
     const tb = document.getElementById('editToolbar');
     if (tb) return;
     const toolbar = document.createElement('div'); toolbar.id = 'editToolbar'; 
     toolbar.className = "flex flex-wrap justify-center gap-2 mb-6 p-2 bg-black/20 rounded-2xl border border-white/5 backdrop-blur-sm mx-auto max-w-fit";
-    
     const tools = [ 
         { id: null, label: 'Auto', icon: 'fa-magic', color: 'text-gray-400', bg: 'hover:bg-gray-500/10' }, 
         { id: 'T', label: 'Turno', icon: 'fa-briefcase', color: 'text-emerald-400', bg: 'hover:bg-emerald-500/10' }, 
@@ -340,13 +335,11 @@ function renderEditToolbar() {
         { id: 'A', label: 'Af', icon: 'fa-user-injured', color: 'text-orange-400', bg: 'hover:bg-orange-500/10' }, 
         { id: 'LM', label: 'LM', icon: 'fa-baby', color: 'text-pink-400', bg: 'hover:bg-pink-500/10' } 
     ];
-
     toolbar.innerHTML = tools.map(t => `
         <button onclick="window.setEditTool('${t.id}')" class="group relative px-4 py-2 rounded-xl border border-transparent ${t.bg} transition-all active:scale-95 flex flex-col items-center gap-1 min-w-[50px]">
             <i class="fas ${t.icon} ${t.color} text-sm mb-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
             <span class="text-[9px] font-bold text-gray-500 group-hover:text-white uppercase tracking-wider">${t.label}</span>
-        </button>
-    `).join('');
+        </button>`).join('');
     document.getElementById('calendarContainer').insertBefore(toolbar, document.getElementById('calendarGrid'));
 }
 function setEditTool(id) { activeTool = (id === 'null' || id === null) ? null : id; }
