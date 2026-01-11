@@ -75,7 +75,7 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- DASHBOARD: LAYOUT DE CARD CORRIGIDO (NOME COMPLETO) ---
+// --- DASHBOARD: LAYOUT DE CARD OTIMIZADO ---
 export function renderDailyDashboard() {
     const now = new Date();
     const currentHour = now.getHours();
@@ -146,7 +146,7 @@ export function renderDailyDashboard() {
                 </div>
                 <span class="text-xs font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">${count}</span>
             </div>
-            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-1 pr-2">
+            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
         `;
 
         if (count === 0) {
@@ -156,25 +156,26 @@ export function renderDailyDashboard() {
             </div>`;
         } else {
             html += groups[k].map(u => `
-                <div class="group flex items-start justify-between p-2.5 rounded-xl hover:bg-white/5 transition-all border border-transparent hover:border-white/5">
-                    
-                    <div class="flex items-start gap-3 min-w-0 flex-1">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[10px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0 mt-0.5">
+                <div class="group relative p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
+                    <div class="flex items-start gap-3">
+                        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[11px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0">
                             ${u.name.charAt(0)}
                         </div>
                         
-                        <div class="flex flex-col min-w-0">
-                            <span class="text-[11px] font-medium text-gray-200 leading-tight block break-words" title="${u.name}">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[11px] font-bold text-gray-200 leading-tight mb-1 break-words">
                                 ${u.name}
-                            </span>
-                            <span class="text-[9px] text-gray-500 font-mono truncate block mt-0.5" title="${u.cargo || 'Colaborador'}">
-                                ${u.cargo || 'Colaborador'}
-                            </span>
+                            </p>
+                            
+                            <div class="flex items-center justify-between gap-2 mt-1">
+                                <span class="text-[9px] text-gray-500 truncate max-w-[70px]" title="${u.cargo || 'Colaborador'}">
+                                    ${u.cargo || 'Colaborador'}
+                                </span>
+                                <span class="text-[9px] font-mono text-${colorName}-400 bg-${colorName}-500/10 px-1.5 py-0.5 rounded border border-${colorName}-500/20 shrink-0">
+                                    ${u.horario ? u.horario.split(' ')[0] : '08:00'}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="text-[9px] font-mono text-${colorName}-400 bg-${colorName}-500/5 px-2 py-1 rounded border border-${colorName}-500/10 shrink-0 ml-2 mt-0.5">
-                        ${u.horario ? u.horario.split(' ')[0] : '08:00'}
                     </div>
                 </div>
             `).join('');
@@ -185,7 +186,7 @@ export function renderDailyDashboard() {
     });
 }
 
-// ... (O RESTANTE DO ARQUIVO PERMANECE IDÊNTICO - CONVITES, MODAIS, ETC) ...
+// ... (Restante do código: renderInviteWidget, modais, etc.) ...
 
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
