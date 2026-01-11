@@ -4,7 +4,6 @@ import { state, monthNames, getDaysInMonth, pad } from './config.js';
 export function updateDynamicMenu() {
     const menuContainer = document.getElementById('dynamicMenuContainer');
     if (!menuContainer) return;
-    // Menu limpo e oculto conforme solicitado
     menuContainer.innerHTML = '';
     menuContainer.classList.add('hidden');
 }
@@ -26,7 +25,6 @@ export function renderMonthSelector(onPrev, onNext) {
     if (!container) return;
     const cur = state.selectedMonthObj;
     
-    // Novo Design "Cápsula Tecnológica"
     container.innerHTML = `
         <div class="flex items-center bg-black/40 rounded-full p-1 border border-white/10 shadow-lg backdrop-blur-md">
             <button id="btnMonthPrev" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-gray-400 hover:text-white transition-all active:scale-90">
@@ -49,6 +47,9 @@ export function updatePersonalView(uidOrName) {
     const calContainer = document.getElementById('calendarContainer');
     const card = document.getElementById('personalInfoCard');
     
+    // Atualiza o widget de FDS sempre que a visão pessoal atualizar
+    renderWeekendDuty();
+    
     if (!uidOrName) {
         if(calContainer) calContainer.classList.add('hidden');
         if(card) card.innerHTML = '';
@@ -58,7 +59,6 @@ export function updatePersonalView(uidOrName) {
     if (!emp) return;
 
     if (card) {
-        // Novo Design Banner de Perfil
         card.innerHTML = `
             <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group">
                 <div class="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-purple-600/10 opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -103,6 +103,7 @@ export function updateCalendar(name, schedule) {
     });
 }
 
+// --- WIDGET DE FINS DE SEMANA (ATUALIZADO) ---
 export function renderWeekendDuty() {
     const container = document.getElementById('weekendDutyContainer');
     if (!container || !state.scheduleData) return;
@@ -119,26 +120,51 @@ export function renderWeekendDuty() {
         }
     });
 
-    let html = `<div class="glass-panel p-4 rounded-2xl flex flex-col max-h-[220px] overflow-hidden"><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2 shrink-0"><i class="fas fa-calendar-week text-blue-400"></i> Escala FDS</h3><div class="space-y-2 overflow-y-auto custom-scrollbar pr-1 pb-2">`;
+    // Título atualizado para "Fins de semana"
+    let html = `<div class="glass-panel p-4 rounded-2xl flex flex-col max-h-[220px] overflow-hidden"><h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2 shrink-0"><i class="fas fa-calendar-week text-blue-400"></i> Fins de semana</h3><div class="space-y-2 overflow-y-auto custom-scrollbar pr-1 pb-2">`;
     let hasDuty = false;
+
+    // Verificação de modo e usuário
+    const isCollabMode = state.currentViewMode === 'collab';
+    const myName = state.profile?.name;
 
     weekends.forEach(wk => {
         const getW = (idx) => Object.values(state.scheduleData).filter(e => ['FS','FD','T'].includes(e.schedule[idx])).map(e => e.name);
         const satWorkers = getW(wk.sat.idx);
         const sunWorkers = getW(wk.sun.idx);
 
+        // --- FILTRO DE VISUALIZAÇÃO ---
+        // Se estiver no modo Colaborador, só mostra o card se o usuário estiver escalado no Sábado ou Domingo
+        if (isCollabMode && myName) {
+            const amIWorking = satWorkers.includes(myName) || sunWorkers.includes(myName);
+            if (!amIWorking) return; // Pula este fim de semana
+        }
+
         if (satWorkers.length > 0 || sunWorkers.length > 0) {
             hasDuty = true;
             const satDate = `${pad(wk.sat.date.getDate())}/${pad(state.selectedMonthObj.month + 1)}`;
             const sunDate = `${pad(wk.sun.date.getDate())}/${pad(state.selectedMonthObj.month + 1)}`;
             html += `<div class="bg-white/5 rounded-xl p-3 border border-white/5 hover:bg-white/10 transition-colors"><div class="flex justify-between items-center mb-2 pb-2 border-b border-white/5"><span class="text-[9px] font-bold text-white/50 uppercase tracking-wide">Fim de Semana</span><span class="text-[9px] font-mono text-blue-300 bg-blue-500/10 px-1.5 py-0.5 rounded">${satDate} - ${sunDate}</span></div><div class="space-y-1.5">`;
-            if (satWorkers.length) html += `<div class="flex items-start gap-2"><span class="text-[9px] text-teal-400 font-bold uppercase w-6 mt-0.5">Sáb</span><div class="flex flex-wrap gap-1.5 flex-1">${satWorkers.map(n => `<span class="px-2 py-0.5 rounded-md bg-teal-500/10 border border-teal-500/20 text-[9px] text-teal-200 flex items-center gap-1.5"><div class="w-1 h-1 rounded-full bg-teal-400"></div>${n.split(' ')[0]}</span>`).join('')}</div></div>`;
-            if (sunWorkers.length) html += `<div class="flex items-start gap-2"><span class="text-[9px] text-blue-400 font-bold uppercase w-6 mt-0.5">Dom</span><div class="flex flex-wrap gap-1.5 flex-1">${sunWorkers.map(n => `<span class="px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[9px] text-blue-200 flex items-center gap-1.5"><div class="w-1 h-1 rounded-full bg-blue-400"></div>${n.split(' ')[0]}</span>`).join('')}</div></div>`;
+            
+            // Renderização com Nome e Sobrenome (.split .slice .join)
+            if (satWorkers.length) {
+                html += `<div class="flex items-start gap-2"><span class="text-[9px] text-teal-400 font-bold uppercase w-6 mt-0.5">Sáb</span><div class="flex flex-wrap gap-1.5 flex-1">${satWorkers.map(n => {
+                    const shortName = n.split(' ').slice(0, 2).join(' '); // Nome + Sobrenome
+                    return `<span class="px-2 py-0.5 rounded-md bg-teal-500/10 border border-teal-500/20 text-[9px] text-teal-200 flex items-center gap-1.5"><div class="w-1 h-1 rounded-full bg-teal-400"></div>${shortName}</span>`;
+                }).join('')}</div></div>`;
+            }
+            
+            if (sunWorkers.length) {
+                html += `<div class="flex items-start gap-2"><span class="text-[9px] text-blue-400 font-bold uppercase w-6 mt-0.5">Dom</span><div class="flex flex-wrap gap-1.5 flex-1">${sunWorkers.map(n => {
+                    const shortName = n.split(' ').slice(0, 2).join(' '); // Nome + Sobrenome
+                    return `<span class="px-2 py-0.5 rounded-md bg-blue-500/10 border border-blue-500/20 text-[9px] text-blue-200 flex items-center gap-1.5"><div class="w-1 h-1 rounded-full bg-blue-400"></div>${shortName}</span>`;
+                }).join('')}</div></div>`;
+            }
             html += `</div></div>`;
         }
     });
 
-    if (!hasDuty) html += `<div class="text-[10px] text-gray-600 italic text-center py-4">Sem plantonistas definidos.</div>`;
+    if (!hasDuty) html += `<div class="text-[10px] text-gray-600 italic text-center py-4">Nenhum plantão agendado.</div>`;
     html += `</div></div>`;
     container.innerHTML = html;
 }
