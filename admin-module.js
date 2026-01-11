@@ -51,7 +51,6 @@ export function initAdminUI() {
     const btnSave = document.getElementById('btnSaveConfirm');
     if(btnSave) btnSave.onclick = confirmSaveToCloud;
     
-    // --- CONTROLE DE ACESSO ---
     const btnRoles = document.getElementById('btnManageRoles');
     if (btnRoles) {
         const myLevel = state.profile?.level || 0;
@@ -76,7 +75,7 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- DASHBOARD: VISUAL COM NOME COMPLETO ---
+// --- DASHBOARD: LAYOUT DE CARD CORRIGIDO (NOME COMPLETO) ---
 export function renderDailyDashboard() {
     const now = new Date();
     const currentHour = now.getHours();
@@ -157,24 +156,24 @@ export function renderDailyDashboard() {
             </div>`;
         } else {
             html += groups[k].map(u => `
-                <div class="group flex items-center justify-between p-2.5 rounded-xl hover:bg-white/5 transition-all border border-transparent hover:border-white/5">
+                <div class="group flex items-start justify-between p-2.5 rounded-xl hover:bg-white/5 transition-all border border-transparent hover:border-white/5">
                     
-                    <div class="flex items-center gap-3 min-w-0 flex-1">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[10px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0">
+                    <div class="flex items-start gap-3 min-w-0 flex-1">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[10px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0 mt-0.5">
                             ${u.name.charAt(0)}
                         </div>
                         
                         <div class="flex flex-col min-w-0">
-                            <span class="text-[11px] font-medium text-gray-200 leading-tight" title="${u.name}">
-                                ${u.name} 
+                            <span class="text-[11px] font-medium text-gray-200 leading-tight block break-words" title="${u.name}">
+                                ${u.name}
                             </span>
-                            <span class="text-[9px] text-gray-500 font-mono truncate block" title="${u.cargo || 'Colaborador'}">
+                            <span class="text-[9px] text-gray-500 font-mono truncate block mt-0.5" title="${u.cargo || 'Colaborador'}">
                                 ${u.cargo || 'Colaborador'}
                             </span>
                         </div>
                     </div>
 
-                    <div class="text-[9px] font-mono text-${colorName}-400 bg-${colorName}-500/5 px-2 py-1 rounded border border-${colorName}-500/10 shrink-0 ml-2">
+                    <div class="text-[9px] font-mono text-${colorName}-400 bg-${colorName}-500/5 px-2 py-1 rounded border border-${colorName}-500/10 shrink-0 ml-2 mt-0.5">
                         ${u.horario ? u.horario.split(' ')[0] : '08:00'}
                     </div>
                 </div>
@@ -186,7 +185,7 @@ export function renderDailyDashboard() {
     });
 }
 
-// ... (Restante do arquivo permanece igual: renderInviteWidget, editToolbar, etc.) ...
+// ... (O RESTANTE DO ARQUIVO PERMANECE IDÊNTICO - CONVITES, MODAIS, ETC) ...
 
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
