@@ -75,7 +75,7 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- DASHBOARD: LAYOUT DE CARD OTIMIZADO ---
+// --- DASHBOARD: LAYOUT LIMPO (SÓ NOME) ---
 export function renderDailyDashboard() {
     const now = new Date();
     const currentHour = now.getHours();
@@ -156,26 +156,15 @@ export function renderDailyDashboard() {
             </div>`;
         } else {
             html += groups[k].map(u => `
-                <div class="group relative p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
-                    <div class="flex items-start gap-3">
-                        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[11px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0">
-                            ${u.name.charAt(0)}
-                        </div>
-                        
-                        <div class="flex-1 min-w-0">
-                            <p class="text-[11px] font-bold text-gray-200 leading-tight mb-1 break-words">
-                                ${u.name}
-                            </p>
-                            
-                            <div class="flex items-center justify-between gap-2 mt-1">
-                                <span class="text-[9px] text-gray-500 truncate max-w-[70px]" title="${u.cargo || 'Colaborador'}">
-                                    ${u.cargo || 'Colaborador'}
-                                </span>
-                                <span class="text-[9px] font-mono text-${colorName}-400 bg-${colorName}-500/10 px-1.5 py-0.5 rounded border border-${colorName}-500/20 shrink-0">
-                                    ${u.horario ? u.horario.split(' ')[0] : '08:00'}
-                                </span>
-                            </div>
-                        </div>
+                <div class="group flex items-center p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
+                    <div class="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[11px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0">
+                        ${u.name.charAt(0)}
+                    </div>
+                    
+                    <div class="ml-3 flex-1 min-w-0">
+                        <span class="text-[11px] font-bold text-gray-200 leading-tight block break-words">
+                            ${u.name}
+                        </span>
                     </div>
                 </div>
             `).join('');
@@ -186,7 +175,7 @@ export function renderDailyDashboard() {
     });
 }
 
-// ... (Restante do código: renderInviteWidget, modais, etc.) ...
+// ... (Restante do arquivo permanece idêntico) ...
 
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
