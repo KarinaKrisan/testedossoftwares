@@ -51,6 +51,7 @@ export function initAdminUI() {
     const btnSave = document.getElementById('btnSaveConfirm');
     if(btnSave) btnSave.onclick = confirmSaveToCloud;
     
+    // Controle de Acesso: Botão Gerir Cargos (Nível 60+)
     const btnRoles = document.getElementById('btnManageRoles');
     if (btnRoles) {
         const myLevel = state.profile?.level || 0;
@@ -75,7 +76,7 @@ export function initAdminUI() {
     }, 60000);
 }
 
-// --- DASHBOARD: LAYOUT LIMPO (SÓ NOME) ---
+// --- DASHBOARD: LAYOUT MINIMALISTA (SÓ NOME) ---
 export function renderDailyDashboard() {
     const now = new Date();
     const currentHour = now.getHours();
@@ -90,10 +91,12 @@ export function renderDailyDashboard() {
 
             let g = 'Encerrado'; 
 
+            // Lógica de Turno 12x36 (Noturno vs Diurno)
             const h = emp.horario ? emp.horario.toLowerCase() : "";
             const isNightShift = h.includes("19:00 às 07:00") || h.includes("noite") || h.includes("noturno") || h.startsWith("19");
 
             if (isNightShift) {
+                // Noturno: Ativo entre 19h e 07h
                 if (sToday === 'T') {
                     g = (currentHour >= 19) ? 'Ativo' : 'Encerrado';
                 } 
@@ -106,6 +109,7 @@ export function renderDailyDashboard() {
                 else if (sToday === 'LM') g = 'Licenca';
 
             } else {
+                // Diurno: Ativo entre 07h e 19h
                 if (sToday === 'T') {
                     g = (currentHour >= 19) ? 'Encerrado' : 'Ativo';
                 } 
@@ -136,6 +140,7 @@ export function renderDailyDashboard() {
         const count = groups[k].length;
         const colorName = info.color === 'zinc' ? 'gray' : info.color;
 
+        // Cabeçalho do Card
         let html = `
             <div class="flex justify-between items-center mb-3 pb-2 border-b border-white/5 shrink-0">
                 <div class="flex items-center gap-2 text-${colorName}-400">
@@ -155,6 +160,7 @@ export function renderDailyDashboard() {
                 <span class="text-[9px] uppercase tracking-wider font-medium">Vazio</span>
             </div>`;
         } else {
+            // Renderização dos Itens (Colaboradores)
             html += groups[k].map(u => `
                 <div class="group flex items-center p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
                     <div class="w-9 h-9 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-[11px] font-bold text-gray-300 border border-white/10 shadow-sm shrink-0">
@@ -175,8 +181,7 @@ export function renderDailyDashboard() {
     });
 }
 
-// ... (Restante do arquivo permanece idêntico) ...
-
+// --- WIDGET DE CONVITES ---
 async function renderInviteWidget() {
     const container = document.getElementById('inviteWidgetContainer');
     if (!container) return; 
@@ -229,6 +234,7 @@ async function renderInviteWidget() {
     } catch (e) { console.error("Erro no widget:", e); }
 }
 
+// --- GESTÃO DE CARGOS ---
 function openPromoteModal() {
     const modal = document.getElementById('promoteModal');
     const userSelect = document.getElementById('promoteTargetUser');
@@ -263,6 +269,7 @@ async function confirmPromotion() {
     });
 }
 
+// --- LOGS E AUDITORIA ---
 async function internalApplyLogFilter() {
     const q = query(getCompanyCollection("logs_auditoria"), orderBy("timestamp", "desc"));
     onSnapshot(q, (snap) => {
@@ -277,6 +284,7 @@ function renderAuditLogs() {
 }
 async function addAuditLog(action, target) { if(!state.currentUser) return; try { await addDoc(getCompanyCollection("logs_auditoria"), { adminEmail: state.currentUser.email, action, target, timestamp: serverTimestamp() }); } catch(e) {} }
 
+// --- EDIÇÃO DE ESCALA ---
 async function confirmSaveToCloud() {
     const emp = document.getElementById('employeeSelect').value; if (!emp) return showNotification("Selecione um colaborador", "error");
     askConfirmation(`Salvar escala de ${emp}?`, async () => {
@@ -300,6 +308,7 @@ function askConfirmation(message, onConfirm) {
 
 export function populateEmployeeSelect() { const s = document.getElementById('employeeSelect'); if(s && state.scheduleData) { s.innerHTML = '<option value="">Selecionar...</option>' + Object.keys(state.scheduleData).sort().filter(n=>state.scheduleData[n].level < 100).map(n=>`<option value="${n}">${n}</option>`).join(''); } }
 
+// --- TOOLBAR (Pills Design) ---
 function renderEditToolbar() {
     const tb = document.getElementById('editToolbar');
     if (tb) return;
